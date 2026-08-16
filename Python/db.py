@@ -15,6 +15,9 @@ try:
 except ImportError:
     HAS_PSYCOPG2 = False
 
+from dotenv import load_dotenv
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env.local'))
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env'))
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -24,6 +27,7 @@ DB_PORT = int(os.environ.get("DB_PORT", 5432))
 DB_NAME = os.environ.get("DB_NAME", "Steam")
 DB_USER = os.environ.get("DB_USER", "postgres")
 DB_PASS = os.environ.get("DB_PASS", "")
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
 
 def get_connection():
@@ -33,6 +37,13 @@ def get_connection():
             "psycopg2 module is not installed. Please run: pip install psycopg2-binary"
         )
     
+    if DATABASE_URL:
+        try:
+            return psycopg2.connect(DATABASE_URL)
+        except psycopg2.OperationalError as e:
+            print(f"\n[Neon PostgreSQL Connection Error]: {e}", file=sys.stderr)
+            raise e
+
     kwargs = {
         "host": DB_HOST,
         "port": DB_PORT,

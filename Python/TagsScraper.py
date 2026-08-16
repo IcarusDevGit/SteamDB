@@ -3,6 +3,7 @@ import time
 import requests
 
 import db
+import FetchSteamStoreTags
 
 REQUEST_DELAY = 1.0     # seconds between SteamSpy requests -- keep at 1/sec, don't lower
 TIMEOUT = 10             # seconds to wait for a response before giving up
@@ -88,37 +89,25 @@ def fetch_tags(appid):
             - resolved_ids: list of corresponding tag IDs from the DB or exceptions
             - unresolved_names: list of tag names NOT found in the DB or exceptions
     """
-    steamspy_genres = []
-    steamspy_tags = []
-    steam_store_tags = []
+    html_store_tags = []
+    api_store_tags = []
 
-    # 1. Fetch from SteamSpy API (genres and community tags)
+    # 1. Fetch from Steam Store HTML page (user-defined tags)
     try:
-        url = f"https://steamspy.com/api.php?request=appdetails&appid={appid}"
-        resp = requests.get(url, timeout=TIMEOUT)
-        if resp.status_code == 200:
-            data = resp.json()
-            if isinstance(data, dict):
-                raw_genres = data.get("genre", "")
-                raw_tags = data.get("tags", {})
-
-                if raw_genres:
-                    steamspy_genres = [g.strip() for g in raw_genres.split(",") if g.strip()]
-                if isinstance(raw_tags, dict):
-                    steamspy_tags = list(raw_tags.keys())
+        html_store_tags = FetchSteamStoreTags.fetch_tags(appid)
     except Exception as e:
-        print(f"    [TagsScraper] SteamSpy request failed for appid {appid}: {e}")
+        print(f"    [TagsScraper] HTML Store page scraping failed for appid {appid}: {e}")
 
     # 2. Fetch from Steam Store API (genres and categories)
     try:
-        steam_store_tags = fetch_tags_from_steam_store(appid)
+        api_store_tags = fetch_tags_from_steam_store(appid)
     except Exception as e:
         print(f"    [TagsScraper] Steam Store API request failed for appid {appid}: {e}")
 
     # 3. Merge all tag sources with no duplicates (case-insensitive dedup, preserving order)
     seen = set()
     merged_names = []
-    for name in steamspy_genres + steam_store_tags + steamspy_tags:
+    for name in html_store_tags + api_store_tags:
         key = name.lower()
         if key not in seen:
             seen.add(key)

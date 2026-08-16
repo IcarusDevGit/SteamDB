@@ -62,3 +62,5 @@ Develop way of filtering whitelisted tags in power query or power BI
 Fetch tags from both steam and steam spy *Done
 
 Filter redundant tags on data analysis (E.g. Single-Player and Singleplayer)
+
+WriteCSV.py needs to have the date in order to upsert it into the database

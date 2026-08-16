@@ -1,0 +1,101 @@
+Name	Price	Rating	Release	OnlinePeak	Tags
+Counter-Strike 2	Free	85.80%	Aug 2012	1862531	FPS; Shooter; Competitive; Multiplayer; Team-Based
+PUBG: BATTLEGROUNDS	Free	60.32%	Dec 2017	3257248	Battle Royale; Shooter; Multiplayer; PvP; Survival
+Apex Legends™	Free	67.43%	Nov 2020	624473	Hero Shooter; Battle Royale; FPS; Multiplayer; Team-Based
+Palworld	$20.99	93.42%	Jul 2026	2101867	Open World; Survival; Creature Collector; Open World Survival Craft; Crafting
+Assassin's Creed Black Flag Resynced	$59.99	73.99%	Jul 2026	104756	Open World; Action; Adventure; Pirates; Historical
+Dota 2	Free	80.31%	Jul 2013	1295114	MOBA; Strategy; Multiplayer; Team-Based; eSports
+Steam Machine Hardware	$1049.00	—	Jun 2026	1	Hardware; SteamOS; Gaming PC; Console; Valve
+The Mound: Omen of Cthulhu	$23.99	52.90%	Jul 2026	4136	Horror; Co-op; Survival Horror; Lovecraftian; Multiplayer
+MECCHA CHAMELEON	$5.99	85.64%	Jun 2026	340534	Action; Indie; Platformer; Casual; Colorful
+Steam Deck Hardware	$789.00	—	Jan 2025	—	Handheld; Hardware; Portable Gaming; SteamOS; Valve
+Dead by Daylight	$19.99	78.00%	Jun 2016	170073	Horror; Multiplayer; Survival Horror; Online Co-Op; PvP
+Marvel Rivals	Free	75.50%	Dec 2024	644269	Hero Shooter; Team-Based; Multiplayer; PvP; Action
+Overwatch®	Free	31.36%	Aug 2023	165651	Hero Shooter; FPS; Team-Based; Multiplayer; Action
+Warframe	Free	86.76%	Mar 2013	189837	Action RPG; Looter Shooter; Co-op; Sci-Fi; Multiplayer
+Steam Controller Hardware	$99.00	—	May 2026	—	Hardware; Controller; Valve; Gaming; Steam
+Grand Theft Auto V Enhanced	$14.99	81.98%	Mar 2025	187059	Open World; Action; Crime; Adventure; Multiplayer
+SpiritVale	$14.99	42.60%	Jul 2026	15125	Life Sim; Farming; Cozy; RPG; Adventure
+Denshattack!	$17.99	85.11%	Jul 2026	1090	Action; Indie; Arcade; Anime; Casual
+Forza Horizon 6	$69.99	82.53%	May 2026	302645	Racing; Open World; Driving; Multiplayer; Sports
+Granblue Fantasy: Relink	$39.99	88.59%	Feb 2024	114054	Action RPG; Anime; Co-op; Fantasy; Adventure
+Lost Ark	Free	69.91%	Feb 2022	1325305	MMORPG; Action RPG; Fantasy; Multiplayer; Isometric
+Red Dead Redemption 2	$14.99	91.73%	Dec 2019	99993	Open World; Western; Story Rich; Adventure; Action
+Wuthering Waves	Free	86.74%	Apr 2025	49497	Action RPG; Open World; Anime; Fantasy; Adventure
+EA SPORTS FC™ 26	$32.00	49.57%	Sep 2025	150089	Football; Sports; Multiplayer; Simulation; Competitive
+Escape from Tarkov	$37.49	48.60%	Nov 2025	47800	Extraction Shooter; FPS; Multiplayer; Tactical; Survival
+The Outlast Trials	$11.99	91.34%	Mar 2024	36689	Survival Horror; Co-op; Horror; Online Co-Op; Psychological Horror
+Euro Truck Simulator 2	$4.99	96.56%	Oct 2012	73887	Driving; Simulation; Open World; Trucking; Relaxing
+Halo: Campaign Evolved	$49.99	—	Jul 2026	—	FPS; Sci-Fi; Action; Campaign; Shooter
+ARK: Survival Ascended	$11.24	59.71%	Oct 2023	98047	Open World Survival Craft; Dinosaurs; Survival; Multiplayer; Base Building
+Rust	$39.99	86.32%	Feb 2018	262284	Survival; Crafting; Open World; Multiplayer; PvP
+Kingdom Come: Deliverance II	$23.99	92.84%	Feb 2025	256206	RPG; Medieval; Open World; Story Rich; Realistic
+Limbus Company	Free	86.87%	Feb 2023	157444	Turn-Based Combat; RPG; Anime; Story Rich; Gacha
+SILENT HILL 2	$27.99	93.12%	Oct 2024	23676	Survival Horror; Psychological Horror; Horror; Story Rich; Atmospheric
+EA SPORTS™ College Football 27	$69.99	40.75%	Jul 2026	11578	Sports; American Football; Multiplayer; Simulation; Competitive
+Cat Mail Co.	$12.25	86.84%	Jul 2026	9036	Casual; Indie; Cats; Management; Cute
+The Seven Deadly Sins: Origin	Free	59.59%	Mar 2026	65753	Open World; Action RPG; Anime; Multiplayer; Fantasy
+DELTARUNE	$19.99	96.75%	Jun 2025	291816	RPG; Indie; Story Rich; Pixel Graphics; Great Soundtrack
+Warhammer 40,000: Darktide	$9.99	70.86%	Nov 2022	108395	Co-op; Action; Warhammer 40K; FPS; Horde Shooter
+War Thunder	Free	63.84%	Aug 2013	125430	Vehicle Combat; Military; Free to Play; Simulation; PvP
+Battlefield™ 6	$69.99	64.39%	Oct 2025	747440	FPS; Military; Multiplayer; Shooter; War
+Tom Clancy's Rainbow Six Siege	Free	81.84%	Dec 2015	201933	Tactical Shooter; FPS; Competitive; Multiplayer; Team-Based
+Assassin's Creed Shadows	$31.49	74.60%	Mar 2025	64825	Open World; Action; Adventure; Stealth; Historical
+MapleStory	Free	59.80%	Aug 2012	17750	MMORPG; Anime; Free to Play; Fantasy; Character Customization
+The Incident at Galley House	$17.99	88.33%	Jul 2026	2595	Horror; Exploration; Mystery; First-Person; Atmospheric
+Team Fortress 2	Free	90.39%	Oct 2007	253997	Hero Shooter; FPS; Multiplayer; Team-Based; Comedy
+eBaseball™: PRO SPIRIT	Free	70.17%	Mar 2026	1818	Baseball; Sports; Multiplayer; Simulation; Competitive
+Easy Red 2	$4.49	87.90%	Nov 2020	12026	Military; FPS; War; Simulation; Multiplayer
+Path of Exile 2	$29.99	73.84%	Dec 2024	578569	Action RPG; Hack and Slash; Loot; Dark Fantasy; Online Co-Op
+Planet Zoo	$2.24	89.75%	Nov 2019	38630	Management; Simulation; City Builder; Nature; Building
+NARAKA: BLADEPOINT	Free	68.80%	Aug 2021	385770	Battle Royale; Martial Arts; Multiplayer; PvP; Action
+ELDEN RING	$59.99	92.43%	Feb 2022	953426	Souls-like; Open World; Dark Fantasy; RPG; Difficult
+Destiny 2	Free	77.96%	Oct 2019	316750	FPS; Looter Shooter; Sci-Fi; Multiplayer; Co-op
+Once Human	Free	77.52%	Jul 2024	231668	Open World; Survival; Multiplayer; Crafting; Post-Apocalyptic
+Delta Force	Free	57.79%	Dec 2024	247028	FPS; Military; Multiplayer; Tactical; Free to Play
+Where Winds Meet	Free	85.49%	Nov 2025	251008	Open World; Action RPG; Martial Arts; Adventure; Fantasy
+Call of Duty®: Black Ops II	$39.99	84.79%	Nov 2012	18277	FPS; Shooter; Zombies; Multiplayer; Action
+Baldur's Gate 3	$59.99	96.03%	Aug 2023	875343	CRPG; Turn-Based Combat; Party-Based RPG; Story Rich; Fantasy
+Magic: The Gathering Arena	Free	60.78%	May 2023	18047	Card Game; Strategy; Trading Card Game; Multiplayer; Fantasy
+NBA 2K26	$9.79	63.80%	Sep 2025	52863	Basketball; Sports; Simulation; Multiplayer; Competitive
+Subnautica 2	$29.99	89.92%	May 2026	467582	Open World Survival Craft; Underwater; Exploration; Survival; Base Building
+Echoes of Aincrad	$69.99	50.20%	Jul 2026	19901	Action RPG; Anime; MMORPG; Open World; Fantasy
+Diablo® IV	$49.99	64.63%	Oct 2023	64518	Action RPG; Dungeon Crawler; Loot; Dark Fantasy; Multiplayer
+Watch_Dogs® 2	$2.49	81.12%	Nov 2016	18138	Open World; Action; Hacking; Adventure; Parkour
+The Alters	$17.49	88.28%	Jun 2025	18120	Sci-Fi; Survival; Base Building; Story Rich; Exploration
+World of Warships	Free	75.76%	Nov 2017	411338	Naval Combat; Free to Play; Multiplayer; War; Simulation
+Slay the Spire 2	$24.99	56.46%	Mar 2026	574638	Roguelike Deckbuilder; Card Game; Strategy; Turn-Based; Replay Value
+eFootball™	Free	50.99%	Sep 2021	33037	Football; Sports; Multiplayer; Free to Play; Simulation
+HELLDIVERS™ 2	$39.99	74.75%	Feb 2024	458709	Co-op; Third-Person Shooter; Sci-Fi; Action; Multiplayer
+Borderlands 4	$34.99	58.36%	Sep 2025	304398	Looter Shooter; Co-op; FPS; Action RPG; Sci-Fi
+Arena Breakout: Infinite	Free	72.71%	Sep 2025	66007	Extraction Shooter; Tactical; FPS; Multiplayer; Military
+Angels Fall First	$16.19	79.80%	Jul 2026	1515	Sci-Fi; FPS; Space; Multiplayer; Indie
+METAL GEAR & METAL GEAR 2: Solid Snake	$9.99	80.08%	Oct 2023	359	Stealth; Retro; Action; Classic; Adventure
+Disney Dreamlight Valley	$39.99	90.15%	Dec 2023	14314	Life Simulation; Cozy; Disney; Farming; Adventure
+Easy Red 2: Blood on the Danube DLC	$5.99	83.14%	Jul 2026	—	DLC; Military; FPS; War; Expansion
+007 First Light	$69.99	89.99%	May 2026	71073	Stealth; Action; Spy; Third-Person; Story Rich
+Granblue Fantasy: Relink - Endless Ragnarok Upgrade Kit (Standard Edition) DLC	$29.99	78.52%	Jul 2026	—	Action RPG; Anime; DLC; Fantasy; Co-op
+THE FINALS	Free	77.66%	Dec 2023	242619	FPS; Arena Shooter; Team-Based; Multiplayer; Competitive
+SILENT HILL f	$34.99	79.09%	Sep 2025	22621	Survival Horror; Psychological Horror; Horror; Story Rich; Atmospheric
+Hunt: Showdown 1896	$29.99	73.15%	Aug 2019	60124	Extraction Shooter; Horror; PvPvE; FPS; Survival
+Solarpunk™	$18.39	79.76%	Jun 2026	10192	Open World Survival Craft; Base Building; Exploration; Crafting; Sandbox
+Farming Simulator 25	$29.99	85.55%	Nov 2024	135970	Farming; Simulation; Agriculture; Vehicles; Management
+No Man's Sky	$23.99	84.24%	Aug 2016	212613	Open World; Space; Survival; Exploration; Crafting
+Escape the Backrooms	$9.99	88.97%	Oct 2025	48879	Horror; Co-op; Online Co-Op; Exploration; Survival Horror
+Satisfactory	$27.99	96.17%	Sep 2024	186158	Factory Automation; Base Building; Open World; Crafting; Resource Management
+Cyberpunk 2077	$59.99	85.62%	Dec 2020	1054388	Open World; Cyberpunk; RPG; Sci-Fi; Story Rich
+Wallpaper Engine Application	$4.99	96.85%	Nov 2018	150375	Utilities; Customization; Animation; Sandbox; Design & Illustration
+American Truck Simulator	$4.99	95.63%	Feb 2016	19153	Driving; Simulation; Open World; Trucking; Relaxing
+Rock Bottom	$7.19	80.44%	Jul 2026	1728	Indie; Adventure; Story Rich; Atmospheric; Exploration
+R.E.P.O.	$9.99	95.12%	Feb 2025	271571	Horror; Co-op; Online Co-Op; Physics; Extraction
+Gamble With Your Friends	$4.95	87.55%	May 2026	42848	Party Game; Multiplayer; Casual; Funny; Online Co-Op
+FINAL FANTASY XIV Online	$19.99	85.33%	Feb 2014	95150	MMORPG; Fantasy; Anime; Multiplayer; RPG
+Torchlight: Infinite	Free	68.78%	May 2023	27406	Action RPG; Hack and Slash; Loot; Free to Play; Multiplayer
+A Game About Chopping Trees	$7.19	73.47%	Jul 2026	1205	Casual; Relaxing; Simulation; Indie; Sandbox
+Crimson Desert	$69.99	83.01%	Mar 2026	276261	Open World; Action RPG; Adventure; Fantasy; Exploration
+The Sims™ 4	Free	85.52%	Sep 2014	96328	Life Simulation; Character Customization; Sandbox; Casual; Building
+Season 4 Battlefield Pro - Battlefield™ 6 and REDSEC Pre-Purchase DLC	$24.99	—	Jul 2026	—	DLC; Shooter; Multiplayer; Military; Expansion
+RimWorld	$34.99	96.72%	Oct 2018	96040	Colony Sim; Base Building; Survival; Strategy; Management
+NTE: Neverness to Everness	Free	81.46%	Jul 2026	9246	Anime; Open World; Action RPG; Urban Fantasy; Multiplayer
+Digimon Story Time Stranger	$39.89	87.68%	Oct 2025	84458	Monster Collection; JRPG; Anime; Turn-Based; Adventure
+Valheim	$9.99	93.18%	Feb 2021	502387	Open World Survival Craft; Vikings; Survival; Co-op; Exploration

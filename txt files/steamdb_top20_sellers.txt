@@ -1,0 +1,18 @@
+Ranking	Name	Price	Rating	PeakUsers	ReleaseDate
+1	PUBG: BATTLEGROUNDS	Free	60.32%	3257248	Dec 2017
+2	Counter-Strike 2	Free	85.80%	1862531	Aug 2012
+3	Apex Legends	Free	67.43%	624473	Nov 2020
+4	Palworld	$20.99	93.42%	2101867	Jul 2026
+5	Assassin's Creed Black Flag Resynced	$59.99	73.99%	104756	Jul 2026
+6	Dota 2	Free	80.31%	1295114	Jul 2013
+8	The Mound: Omen of Cthulhu	$23.99	60.98%	3688	Jul 2026
+9	MECCHA CHAMELEON	$5.99	85.63%	340534	Jun 2026
+10	Dead by Daylight	$19.99	78.00%	170073	Jun 2016
+12	Overwatch	Free	31.36%	165651	Aug 2023
+13	Marvel Rivals	Free	75.50%	644269	Dec 2024
+14	Warframe	Free	86.76%	189837	Mar 2013
+16	Grand Theft Auto V Enhanced	$14.99	81.98%	187059	Mar 2025
+17	Granblue Fantasy: Relink	$39.99	88.58%	114054	Feb 2024
+18	Forza Horizon 6	$69.99	82.54%	302645	May 2026
+19	Wuthering Waves	Free	86.74%	49497	Apr 2025
+20	Red Dead Redemption 2	$14.99	91.73%	99993	Dec 2019

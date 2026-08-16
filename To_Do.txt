@@ -1,0 +1,64 @@
+***Python***
+SteamSpy fails with recent games, add failsafe with a different method to fetch tags 
+for those games (right now they are being filtered in power query) *Done with steam store scraping*
+
+New Python file that calls all the methods necessary to get the csv with tags *Done
+
+
+Python/AppendTagsToCSV.py needs to return another csv with the tags name and tags ID for use in excel *Done
+
+Get id from steamspy if not in gamesid.json before trying steam during tag scraping *Done
+
+the top 100 list references a given week from tuesday to tuesday
+
+get game id *id is now obtained from the top 100 list
+get tag's id from https://store.steampowered.com/api/appdetails?appids= using game's id *Done
+tags count (how may times a tag appears) will be done in power query
+
+no data in top 100 json for sales, needs a different method to compare price history to price in given week
+IsthereAnyDeal site tracks sales, needs authorization for api key (app must be public)
+
+***Excel***
+Count how many times a tag appears
+Implement all excel functions to make a dashboard
+Implement Macro to automatically transform the data, do all the calculations and make the dashboard after being
+given a csv
+
+Dashboard
+Filter by date
+Compare dates, months, years and all times
+
+Charts
+Tags frequency and avg rank
+Price frequency and avg rank
+Games average rank
+Price ranges frequency and avg rank
+
+Database: *Done
+    Tag table: Id, name
+    Games table: Id, name, tags (list)
+    Weeksheet table: rank, game_id, price
+
+Update tag and games table after scraping *Done
+add steam_top_100 entries to weeksheet table *Done  
+
+Create new .py file that writes data to a .csv *Done
+
+Fetch top 100 data (appid, name, price, rank) and return data
+Get games from data and append tags with AppendTags.py to any games not found on db
+Append rating to data with AppendRatings.py
+Write data to .csv
+Upsert entries from .csv to weeksheet table on db
+Upsert new entries from .csv both to games and tags table on db
+
+Create "Whitelist" to filter categories and genres tags from other miscellanous tags
+https://api.steampowered.com/IStoreService/GetTagList/v1/?key=2CE4F8F8A27675F987B80830C91C3F47&input_json={%22language%22:%22english%22}
+extract names and ids from returned json
+get all tags in db not in json, validate if any are necessary
+Whitelist all necessary tags
+Add new collumn in tags table to register if a tag is whitelisted
+Develop way of filtering whitelisted tags in power query or power BI
+
+Fetch tags from both steam and steam spy *Done
+
+Filter redundant tags on data analysis (E.g. Single-Player and Singleplayer)

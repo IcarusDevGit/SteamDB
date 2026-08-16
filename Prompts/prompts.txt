@@ -1,0 +1,5 @@
+using https://steamdb.info/stats/globaltopsellers/ return the following data from the top 100 globaltopsellers:
+name, global selling ranking, price, rating, peak users, release date, tags
+the output must be able to be imported directly into excel as a .txt file
+
+return the "name" from every row that contains a chosen tag in the tags column

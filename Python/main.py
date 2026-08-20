@@ -6,6 +6,7 @@ import sys
 import FetchTop100Weekly
 import AppendTags
 import AppendRatings
+import PriceScraper
 import WriteCSV
 import db
 
@@ -28,7 +29,8 @@ def upsert_csv_to_db(csv_filepath: str, week_date_str: str):
             entries.append({
                 "rank": int(row["rank"]) if row.get("rank") else None,
                 "appid": int(row["appid"]) if row.get("appid") else None,
-                "price": row.get("price", 0),
+                "price": row.get("price") or None,
+                "discount": row.get("discount"),
                 "rating": float(row["rating"]) if row.get("rating") else 0.0,
             })
 
@@ -70,21 +72,28 @@ def main():
 
     # 3. Append ratings to data with AppendRatings.py
     print(f"\n3. Fetching and appending ratings with AppendRatings.py...")
-    data_with_ratings = AppendRatings.main(data=raw_data)
+    data_with_ratings = AppendRatings.main(data=data_with_tags)
+
+    # 4. Replace the current Steam price with its historical value for the chart date.
+    print(f"\n4. Fetching Steam prices for {closed_week_date} with PriceScraper.py...")
+    data_with_prices = PriceScraper.append_prices(data_with_ratings, closed_week_date)
 
     # Transform to final data structure: [{'rank': 1, 'appid': 730, 'price': 0, 'rating': 0.95}]
     final_data = []
-    for item in data_with_ratings:
+    for item in data_with_prices:
         final_data.append({
             "rank": item.get("rank"),
             "appid": item.get("appid"),
-            "price": item.get("price", 0),
+            "name": item.get("name"),
+            "tags": item.get("Tags", ""),
             "rating": item.get("rating", 0.0),
+            "price": item.get("price"),
+            "discount": item.get("discount"),
         })
 
-    # 4. Write data to .csv using WriteCSV.py
+    # 5. Write data to .csv using WriteCSV.py
     csv_filename = "steam_top_100.csv"
-    print(f"\n4. Writing final data to {csv_filename} using WriteCSV.py...")
+    print(f"\n5. Writing final data to {csv_filename} using WriteCSV.py...")
     WriteCSV.main(final_data, filepath=csv_filename)
 
     # 5. Method for upserting entries from .csv to weeksheet table on db using script on db.py (Commented out per Workflow.md)

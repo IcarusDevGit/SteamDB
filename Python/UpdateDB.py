@@ -16,6 +16,7 @@ import time
 import FetchTop100Weekly
 import AppendRatings
 import AppendTags
+import PriceScraper
 import db
 
 TIMEOUT = 10
@@ -39,7 +40,8 @@ def upsert_csv_to_db(csv_filepath: str = "C:/Dev/SteamDB/CSV/steam_top_100.csv",
             entries.append({
                 "rank": int(row["rank"]) if row.get("rank") else None,
                 "appid": int(row["appid"]) if row.get("appid") else None,
-                "price": row.get("price", 0),
+                "price": row.get("price") or None,
+                "discount": int(row["discount"]) if row.get("discount") else None,
                 "rating": float(row["rating"]) if row.get("rating") else 0.0,
             })
 
@@ -73,6 +75,29 @@ def update_null_ratings():
             updated_count += 1
 
     print(f"\nSuccessfully updated ratings for {updated_count} game(s) in 'weeksheet' table.")
+
+
+def update_null_prices():
+    """Fetch and fill weeksheet rows where price or discount is NULL."""
+    db.create_tables()
+    entries = db.get_weeksheet_null_prices()
+    if not entries:
+        print("No entries with NULL price or discount found in 'weeksheet' table.")
+        return
+    print(f"Found {len(entries)} row(s) with missing price information.")
+    updated = 0
+    for entry in entries:
+        appid = entry["appid"]
+        week_date = entry["week_date"]
+        try:
+            price, discount = PriceScraper.main(appid, week_date)
+            if price is not None and discount is not None:
+                db.update_weeksheet_price(appid, week_date, price, discount)
+                updated += 1
+        except (ValueError, requests.RequestException, PriceScraper.PriceScraperError) as exc:
+            print(f"Could not update appid {appid} for {week_date}: {exc}")
+        time.sleep(PriceScraper.REQUEST_DELAY)
+    print(f"Successfully updated price information for {updated} row(s).")
 
 def upsert_games():
     """
@@ -119,6 +144,9 @@ def main():
     subparsers.add_parser(
         "update-null-ratings", help="Fetch ratings via AppendRatings.py and update entries where rating IS NULL."
     )
+    subparsers.add_parser(
+        "update-null-prices", help="Fetch ITAD prices and update rows where price or discount is NULL."
+    )
 
     # Sub-command: update-games
     subparsers.add_parser("update-games", help="Update entries on the games table.")
@@ -150,6 +178,9 @@ def main():
         "--update-null-ratings", action="store_true", help="Fetch ratings and update NULL ratings in weeksheet table."
     )
     parser.add_argument(
+        "--update-null-prices", action="store_true", help="Fetch prices and update NULL price fields."
+    )
+    parser.add_argument(
         "--update-games", action="store_true", help="Update entries on the games table."
     )
     parser.add_argument(
@@ -174,6 +205,8 @@ def main():
         upsert_csv_to_db(csv_filepath=args.csv, week_date_str=args.date)
     elif args.command == "update-null-ratings" or args.update_null_ratings:
         update_null_ratings()
+    elif args.command == "update-null-prices" or args.update_null_prices:
+        update_null_prices()
     elif args.command == "update-games" or args.update_games:
         upsert_games()
     elif args.command == "update-missing-tags" or args.update_missing_tags:

@@ -91,13 +91,16 @@ def create_tables(conn=None):
         week_date DATE NOT NULL,
         rank INT NOT NULL,
         game_id INT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
-        price DECIMAL(10, 2) NOT NULL,
+        price DECIMAL(10, 2),
+        discount INT,
         rating DECIMAL(10, 2),
         CONSTRAINT unique_week_rank UNIQUE (week_date, rank),
         CONSTRAINT unique_week_game UNIQUE (week_date, game_id)
     );
 
     ALTER TABLE weeksheet ADD COLUMN IF NOT EXISTS rating DECIMAL(10, 2);
+    ALTER TABLE weeksheet ADD COLUMN IF NOT EXISTS discount INT;
+    ALTER TABLE weeksheet ALTER COLUMN price DROP NOT NULL;
 
     CREATE INDEX IF NOT EXISTS idx_weeksheet_date ON weeksheet (week_date);
     CREATE INDEX IF NOT EXISTS idx_weeksheet_game ON weeksheet (game_id);
@@ -290,22 +293,26 @@ def insert_weeksheet_entries(week_date_str: str, entries: list):
         name = entry.get("name", "")
         price_val = entry.get("price", 0)
         rating = entry.get("rating", 0.0)
+        discount = entry.get("discount")
 
-        if isinstance(price_val, str):
+        if price_val in (None, ""):
+            price = None
+        elif isinstance(price_val, str):
             clean_price = re.sub(r"[^\d.]", "", price_val)
-            price = float(clean_price) if clean_price else 0.0
+            price = float(clean_price) if clean_price else None
         else:
-            price = float(price_val) if price_val else 0.0
+            price = float(price_val)
 
         if appid and rank:
             upsert_game(appid, name)
-            tuples.append((week_date_str, rank, appid, price, rating))
+            tuples.append((week_date_str, rank, appid, price, discount, rating))
 
     query = """
-    INSERT INTO weeksheet (week_date, rank, game_id, price, rating)
-    VALUES (%s, %s, %s, %s, %s)
+    INSERT INTO weeksheet (week_date, rank, game_id, price, discount, rating)
+    VALUES (%s, %s, %s, %s, %s, %s)
     ON CONFLICT (week_date, rank) DO UPDATE 
-    SET game_id = EXCLUDED.game_id, price = EXCLUDED.price;
+    SET game_id = EXCLUDED.game_id, price = EXCLUDED.price,
+        discount = EXCLUDED.discount, rating = EXCLUDED.rating;
     """
 
     with conn.cursor() as cur:
@@ -346,3 +353,31 @@ def update_weeksheet_rating(game_id: int, rating: float):
     conn.commit()
     conn.close()
 
+
+def get_weeksheet_null_prices():
+    """Return rows whose price or discount is missing, preserving each week date."""
+    conn = get_connection()
+    with conn.cursor() as cur:
+        cur.execute("""
+            SELECT game_id, week_date
+            FROM weeksheet
+            WHERE price IS NULL OR discount IS NULL
+            ORDER BY week_date, game_id;
+        """)
+        rows = cur.fetchall()
+    conn.close()
+    return [{"appid": row[0], "week_date": row[1]} for row in rows]
+
+
+def update_weeksheet_price(game_id, week_date, price, discount):
+    """Fill missing historical price fields for one game/week pair."""
+    conn = get_connection()
+    with conn.cursor() as cur:
+        cur.execute("""
+            UPDATE weeksheet
+            SET price = COALESCE(price, %s), discount = COALESCE(discount, %s)
+            WHERE game_id = %s AND week_date = %s
+              AND (price IS NULL OR discount IS NULL);
+        """, (price, discount, game_id, week_date))
+    conn.commit()
+    conn.close()

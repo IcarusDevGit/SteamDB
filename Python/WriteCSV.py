@@ -10,13 +10,13 @@ import os
 def write_csv(data: list, filepath: str = "CSV/steam_top_100.csv") -> str:
     """
     Writes a list of dictionaries to a CSV file.
-    Expects data elements to contain keys: 'rank', 'appid', 'price', 'rating'.
+    Expects: rank, appid, name, tags, rating, price, and discount.
     """
     if not data:
         print("No data provided to write to CSV.")
         return filepath
 
-    fieldnames = ["rank", "appid", "price", "rating"]
+    fieldnames = ["rank", "appid", "name", "tags", "rating", "price", "discount"]
 
     with open(filepath, mode="w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
@@ -25,8 +25,11 @@ def write_csv(data: list, filepath: str = "CSV/steam_top_100.csv") -> str:
             writer.writerow({
                 "rank": row.get("rank"),
                 "appid": row.get("appid"),
-                "price": row.get("price"),
+                "name": row.get("name"),
+                "tags": row.get("tags", row.get("Tags", "")),
                 "rating": row.get("rating"),
+                "price": row.get("price"),
+                "discount": row.get("discount"),
             })
 
     print(f"Successfully wrote {len(data)} records to {filepath}")

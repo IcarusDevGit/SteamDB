@@ -43,6 +43,8 @@ def upsert_csv_to_db(csv_filepath: str = "C:/Dev/SteamDB/CSV/steam_top_100.csv",
                 "price": row.get("price") or None,
                 "discount": int(row["discount"]) if row.get("discount") else None,
                 "rating": float(row["rating"]) if row.get("rating") else 0.0,
+                "last_week_rank": int(row["last_week_rank"]) if row.get("last_week_rank") else None,
+                "consecutive_weeks": int(row["consecutive_weeks"]) if row.get("consecutive_weeks") else None,
             })
 
     db.create_tables()
@@ -99,6 +101,71 @@ def update_null_prices():
         time.sleep(PriceScraper.REQUEST_DELAY)
     print(f"Successfully updated price information for {updated} row(s).")
 
+
+def update_last_week_rank(target_date_str: str = None):
+    """
+    Updates weeksheet table with last_week_rank fetched from Steam API.
+    If target_date_str is provided, updates that specific date.
+    Otherwise, queries weeksheet for dates where last_week_rank has not been populated.
+    """
+    db.create_tables()
+
+    if target_date_str:
+        dates_to_update = [target_date_str]
+    else:
+        dates_to_update = db.get_weeksheet_dates_with_null_last_week_rank()
+
+    if not dates_to_update:
+        print("No weeks with unpopulated last_week_rank found in 'weeksheet' table.")
+        return
+
+    print(f"Found {len(dates_to_update)} week(s) to update with last_week_rank: {', '.join(dates_to_update)}")
+
+    for week_date in dates_to_update:
+        print(f"\nFetching weekly top sellers for week {week_date} from Steam API...")
+        try:
+            raw_data = FetchTop100Weekly.fetch_weekly_top_sellers(start_date_str=week_date, count=100)
+            ranks_data = FetchTop100Weekly.parse_results(raw_data)
+            updated_count = db.update_weeksheet_last_week_ranks_batch(week_date, ranks_data)
+            print(f"Successfully updated last_week_rank for {updated_count} entries on week {week_date}.")
+        except Exception as e:
+            print(f"Error updating last_week_rank for week {week_date}: {e}")
+
+    print("\nCompleted updating last_week_rank in 'weeksheet' table.")
+
+
+def update_consecutive_weeks(target_date_str: str = None):
+    """
+    Updates weeksheet table with consecutive_weeks fetched from Steam API.
+    If target_date_str is provided, updates that specific date.
+    Otherwise, queries weeksheet for dates where consecutive_weeks has not been populated.
+    """
+    db.create_tables()
+
+    if target_date_str:
+        dates_to_update = [target_date_str]
+    else:
+        dates_to_update = db.get_weeksheet_dates_with_null_consecutive_weeks()
+
+    if not dates_to_update:
+        print("No weeks with unpopulated consecutive_weeks found in 'weeksheet' table.")
+        return
+
+    print(f"Found {len(dates_to_update)} week(s) to update with consecutive_weeks: {', '.join(dates_to_update)}")
+
+    for week_date in dates_to_update:
+        print(f"\nFetching weekly top sellers for week {week_date} from Steam API...")
+        try:
+            raw_data = FetchTop100Weekly.fetch_weekly_top_sellers(start_date_str=week_date, count=100)
+            ranks_data = FetchTop100Weekly.parse_results(raw_data)
+            updated_count = db.update_weeksheet_consecutive_weeks_batch(week_date, ranks_data)
+            print(f"Successfully updated consecutive_weeks for {updated_count} entries on week {week_date}.")
+        except Exception as e:
+            print(f"Error updating consecutive_weeks for week {week_date}: {e}")
+
+    print("\nCompleted updating consecutive_weeks in 'weeksheet' table.")
+
+
 def upsert_games():
     """
     Updates all games on the games table
@@ -147,6 +214,18 @@ def main():
     subparsers.add_parser(
         "update-null-prices", help="Fetch ITAD prices and update rows where price or discount is NULL."
     )
+    subparsers.add_parser(
+        "update-last-week-rank", help="Fetch last week ranks from Steam API and update weeksheet entries."
+    )
+    subparsers.add_parser(
+        "update_last_week_rank", help="Fetch last week ranks from Steam API and update weeksheet entries."
+    )
+    subparsers.add_parser(
+        "update-consecutive-weeks", help="Fetch consecutive weeks from Steam API and update weeksheet entries."
+    )
+    subparsers.add_parser(
+        "update_consecutive_weeks", help="Fetch consecutive weeks from Steam API and update weeksheet entries."
+    )
 
     # Sub-command: update-games
     subparsers.add_parser("update-games", help="Update entries on the games table.")
@@ -181,6 +260,12 @@ def main():
         "--update-null-prices", action="store_true", help="Fetch prices and update NULL price fields."
     )
     parser.add_argument(
+        "--update-last-week-rank", "--update_last_week_rank", action="store_true", help="Fetch last week ranks and update weeksheet entries."
+    )
+    parser.add_argument(
+        "--update-consecutive-weeks", "--update_consecutive_weeks", action="store_true", help="Fetch consecutive weeks and update weeksheet entries."
+    )
+    parser.add_argument(
         "--update-games", action="store_true", help="Update entries on the games table."
     )
     parser.add_argument(
@@ -207,6 +292,10 @@ def main():
         update_null_ratings()
     elif args.command == "update-null-prices" or args.update_null_prices:
         update_null_prices()
+    elif args.command in ("update-last-week-rank", "update_last_week_rank") or args.update_last_week_rank:
+        update_last_week_rank(target_date_str=args.date)
+    elif args.command in ("update-consecutive-weeks", "update_consecutive_weeks") or args.update_consecutive_weeks:
+        update_consecutive_weeks(target_date_str=args.date)
     elif args.command == "update-games" or args.update_games:
         upsert_games()
     elif args.command == "update-missing-tags" or args.update_missing_tags:

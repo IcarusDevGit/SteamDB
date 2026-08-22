@@ -12,6 +12,7 @@ import os
 import time
 
 import db
+import FetchSteamStoreTags
 from FetchTop100Weekly import get_last_closed_tuesday
 from TagsScraper import fetch_tags, upsert_missing_tag, load_tags_exceptions, REQUEST_DELAY
 
@@ -53,27 +54,82 @@ def main(week_date_str=None, data: dict = {}):
             entry["Tags"] = ", ".join(db_tag_names)
             print(f"[{i}/{total}] {name} (appid {appid}) [Found in DB]: {entry['Tags'][:60]}")
         else:
-            # 2. Not found in DB -> Consult TagsScraper.py (SteamSpy API)
-            print(f"[{i}/{total}] {name} (appid {appid}) [Not in DB -> Scraping tags...]")
+            # 2. Not found in DB -> Process categories from top 100 API data + user tags
+            print(f"[{i}/{total}] {name} (appid {appid}) [Not in DB -> Processing categories & tags...]")
             try:
-                tag_names, tag_ids, unresolved = fetch_tags(appid)
-                entry["Tags"] = ", ".join(tag_names)
+                # 2a. Resolve categories & content descriptors from top 100 API data
+                top100_tag_ids = entry.get("tag_ids", [])
+                db_tags = db.fetch_all_tags()  # {name: tagid}
+                id_to_name = {tagid: name for name, tagid in db_tags.items()}
+                exceptions = load_tags_exceptions()
+
+                cat_resolved_names = []
+                cat_resolved_ids = []
+                unresolved = []
+                seen_ids = set()
+                seen_names = set()
+
+                store_categories_cache = None
+                for cid in top100_tag_ids:
+                    if cid in id_to_name:
+                        cname = id_to_name[cid]
+                        if cid not in seen_ids and cname.lower() not in seen_names:
+                            seen_ids.add(cid)
+                            seen_names.add(cname.lower())
+                            cat_resolved_ids.append(cid)
+                            cat_resolved_names.append(cname)
+                    else:
+                        # Category ID not in DB -> Fetch category name from Steam store API via FetchSteamStoreTags
+                        if store_categories_cache is None:
+                            store_categories_cache = FetchSteamStoreTags.fetch_store_categories(appid)
+                        cname = store_categories_cache.get(cid)
+                        if cname:
+                            if cid not in seen_ids and cname.lower() not in seen_names:
+                                seen_ids.add(cid)
+                                seen_names.add(cname.lower())
+                                cat_resolved_ids.append(cid)
+                                cat_resolved_names.append(cname)
+                            if cname not in unresolved:
+                                unresolved.append(cname)
+                        else:
+                            unresolved_label = f"Category ID {cid}"
+                            if unresolved_label not in unresolved:
+                                unresolved.append(unresolved_label)
+
+                # 2b. Fetch user-defined tags (from Steam Store HTML / user tags)
+                user_names, user_ids, user_unresolved = fetch_tags(appid)
+
+                # 2c. Merge categories + user-defined tags with no duplicates
+                merged_names = list(cat_resolved_names)
+                merged_ids = list(cat_resolved_ids)
+                for uname, uid in zip(user_names, user_ids):
+                    if uid not in seen_ids and uname.lower() not in seen_names:
+                        seen_ids.add(uid)
+                        seen_names.add(uname.lower())
+                        merged_ids.append(uid)
+                        merged_names.append(uname)
+
+                for u in user_unresolved:
+                    if u not in unresolved:
+                        unresolved.append(u)
+
+                entry["Tags"] = ", ".join(merged_names)
 
                 # Upsert game entry directly to database
-                db.upsert_game(appid, name, tag_ids)
+                db.upsert_game(appid, name, merged_ids)
 
                 csv_rows.append({
                     "appid": appid,
                     "name": name,
-                    "tags": ", ".join(tag_names),
+                    "tags": ", ".join(merged_names),
                     "unresolved_tags": ", ".join(unresolved),
                 })
 
                 if unresolved:
-                    print(f"    -> Scraped tags: {entry['Tags'][:60]}")
+                    print(f"    -> Processed tags: {entry['Tags'][:60]}")
                     print(f"    -> Unresolved: {', '.join(unresolved)[:60]}")
                 else:
-                    print(f"    -> Scraped tags: {entry['Tags'][:60]}")
+                    print(f"    -> Processed tags: {entry['Tags'][:60]}")
             except Exception as e:
                 import traceback
                 print(f"    -> Failed to fetch tags for '{name}' (appid {appid}): {e}")

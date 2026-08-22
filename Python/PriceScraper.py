@@ -8,6 +8,8 @@ from datetime import datetime, time as datetime_time, timezone
 import requests
 from dotenv import load_dotenv
 
+import FetchPriceFromSteam
+
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 load_dotenv(os.path.join(BASE_DIR, ".env.local"))
@@ -159,13 +161,19 @@ def append_prices(data, target_date, *, api_key=None, session=None):
 
 
 def main(appid, date, *, api_key=None, session=None):
-    """Look up a Steam game and return its ``(price, discount)`` for a date."""
+    """Return a Steam game's historical price, falling back to its store page."""
     if appid in (None, ""):
         return None, None
     game_id = lookup_game(appid, api_key=api_key, session=session)
     if not game_id:
-        return None, None
-    return history_log(game_id, date, api_key=api_key, session=session)
+        print(f"No ITAD mapping for appid {appid}; fetching the current Steam store price")
+        return FetchPriceFromSteam.fetch_price(appid, session=session)
+
+    price, discount = history_log(game_id, date, api_key=api_key, session=session)
+    if price is None and discount is None:
+        print(f"No ITAD price history for appid {appid}; fetching the current Steam store price")
+        return FetchPriceFromSteam.fetch_price(appid, session=session)
+    return price, discount
 
 
 # Backwards-compatible names from the original scaffold.

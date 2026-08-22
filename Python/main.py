@@ -30,8 +30,10 @@ def upsert_csv_to_db(csv_filepath: str, week_date_str: str):
                 "rank": int(row["rank"]) if row.get("rank") else None,
                 "appid": int(row["appid"]) if row.get("appid") else None,
                 "price": row.get("price") or None,
-                "discount": row.get("discount"),
+                "discount": int(row["discount"]) if row.get("discount") else None,
                 "rating": float(row["rating"]) if row.get("rating") else 0.0,
+                "last_week_rank": int(row["last_week_rank"]) if row.get("last_week_rank") else None,
+                "consecutive_weeks": int(row["consecutive_weeks"]) if row.get("consecutive_weeks") else None,
             })
 
     db.insert_weeksheet_entries(week_date_str, entries)
@@ -89,10 +91,12 @@ def main():
             "rating": item.get("rating", 0.0),
             "price": item.get("price"),
             "discount": item.get("discount"),
+            "last_week_rank": item.get("last_week_rank"),
+            "consecutive_weeks": item.get("consecutive_weeks"),
         })
 
     # 5. Write data to .csv using WriteCSV.py
-    csv_filename = "steam_top_100.csv"
+    csv_filename = "CSV/steam_top_100.csv"
     print(f"\n5. Writing final data to {csv_filename} using WriteCSV.py...")
     WriteCSV.main(final_data, filepath=csv_filename)
 

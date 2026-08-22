@@ -16,7 +16,7 @@ def write_csv(data: list, filepath: str = "CSV/steam_top_100.csv") -> str:
         print("No data provided to write to CSV.")
         return filepath
 
-    fieldnames = ["rank", "appid", "name", "tags", "rating", "price", "discount"]
+    fieldnames = ["rank", "appid", "name", "tags", "rating", "price", "discount", "last_week_rank", "consecutive_weeks"]
 
     with open(filepath, mode="w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
@@ -30,6 +30,8 @@ def write_csv(data: list, filepath: str = "CSV/steam_top_100.csv") -> str:
                 "rating": row.get("rating"),
                 "price": row.get("price"),
                 "discount": row.get("discount"),
+                "last_week_rank": row.get("last_week_rank"),
+                "consecutive_weeks": row.get("consecutive_weeks"),
             })
 
     print(f"Successfully wrote {len(data)} records to {filepath}")

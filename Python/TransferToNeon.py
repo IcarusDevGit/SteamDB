@@ -110,8 +110,8 @@ def transfer_all():
         transfer_table(
             local_conn, neon_conn, 
             table_name="weeksheet", 
-            columns=["week_date", "rank", "game_id", "price", "rating"],
-            conflict_clause="(week_date, rank) DO UPDATE SET game_id = EXCLUDED.game_id, price = EXCLUDED.price, rating = EXCLUDED.rating"
+            columns=["week_date", "rank", "game_id", "price", "discount", "rating", "last_week_rank", "consecutive_weeks"],
+            conflict_clause="(week_date, rank) DO UPDATE SET game_id = EXCLUDED.game_id, price = EXCLUDED.price, discount = EXCLUDED.discount, rating = EXCLUDED.rating, last_week_rank = EXCLUDED.last_week_rank, consecutive_weeks = EXCLUDED.consecutive_weeks"
         )
         
         print("\nDatabase transfer completed successfully!")

@@ -5,6 +5,9 @@ import time
 from datetime import datetime, timedelta, timezone
 import requests
 
+if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 API_KEY = "2CE4F8F8A27675F987B80830C91C3F47"
 BASE_URL = "https://api.steampowered.com/IStoreTopSellersService/GetWeeklyTopSellers/v1/"
 
@@ -86,13 +89,36 @@ def parse_results(data):
         price = best_option.get("formatted_final_price", "")
         if not price and item_info.get("is_free"):
             price = 0
+
+        # Extract content descriptor IDs and categories into a deduplicated list of tag IDs
+        tag_ids = []
+        seen_ids = set()
+        for cid in item_info.get("content_descriptorids", []) or []:
+            if isinstance(cid, int) and cid not in seen_ids:
+                seen_ids.add(cid)
+                tag_ids.append(cid)
+
+        categories = item_info.get("categories", {}) or {}
+        for cat_list in categories.values():
+            if isinstance(cat_list, list):
+                for cid in cat_list:
+                    if isinstance(cid, int) and cid not in seen_ids:
+                        seen_ids.add(cid)
+                        tag_ids.append(cid)
+
+        last_week_rank = entry.get("last_week_rank")
+        if last_week_rank is None:
+            last_week_rank = -1
+
         results.append({
             "rank": entry.get("rank"),
             "appid": appid,
             "name": name,
             "price": price,
+            "last_week_rank": last_week_rank,
+            "consecutive_weeks": entry.get("consecutive_weeks"),
+            "tag_ids": tag_ids,
         })
-    print(results)
     return results
 
 

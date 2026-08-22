@@ -51,6 +51,65 @@ def fetch_tags(appid):
         print(f"[FetchSteamStoreTags] Unexpected error fetching tags for appid {appid}: {e}")
         return []
 
+
+CONTENT_DESCRIPTORS_MAP = {
+    1: "Some Nudity or Sexual Content",
+    2: "Frequent Violence or Gore",
+    3: "Adult Only Sexual Content",
+    4: "Frequent Nudity or Sexual Content",
+    5: "General Mature Content",
+}
+
+
+def fetch_store_categories(appid):
+    """
+    Fetches categories and content descriptors for a given appid from Steam Store API.
+    Returns:
+        dict: {int_id: str_name} mapping category/descriptor IDs to their descriptions.
+    """
+    url = f"https://store.steampowered.com/api/appdetails?appids={appid}&cc=us&l=english"
+    try:
+        resp = requests.get(url, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+        app_data = data.get(str(appid), {})
+        if not app_data.get("success"):
+            return {}
+
+        inner_data = app_data.get("data", {})
+        categories = inner_data.get("categories", [])
+
+        cat_map = {}
+        for c in categories:
+            cid = c.get("id")
+            desc = c.get("description", "").strip()
+            if cid is not None and desc:
+                cat_map[int(cid)] = desc
+
+        # Content descriptors
+        cd_ids = inner_data.get("content_descriptors", {}).get("ids", [])
+        for cid in cd_ids:
+            if isinstance(cid, int) and cid in CONTENT_DESCRIPTORS_MAP and cid not in cat_map:
+                cat_map[cid] = CONTENT_DESCRIPTORS_MAP[cid]
+
+        return cat_map
+    except Exception as e:
+        print(f"[FetchSteamStoreTags] Error fetching categories for appid {appid}: {e}")
+        return {}
+
+
+def fetch_category_name(appid, category_id):
+    """
+    Fetch a single category name for a given appid and category ID.
+    Returns description string if found, or None.
+    """
+    if category_id in CONTENT_DESCRIPTORS_MAP:
+        return CONTENT_DESCRIPTORS_MAP[category_id]
+
+    cat_map = fetch_store_categories(appid)
+    return cat_map.get(int(category_id))
+
+
 if __name__ == "__main__":
     # Test the function with a known game, e.g., Cyberpunk 2077 (1091500)
     test_appid = 1091500
@@ -58,3 +117,9 @@ if __name__ == "__main__":
     tags = fetch_tags(test_appid)
     print(f"Found {len(tags)} tags:")
     print(tags)
+
+    print(f"\nFetching categories for AppID {test_appid}...")
+    cats = fetch_store_categories(test_appid)
+    print(f"Found {len(cats)} categories:")
+    print(cats)
+

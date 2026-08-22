@@ -94,12 +94,16 @@ def create_tables(conn=None):
         price DECIMAL(10, 2),
         discount INT,
         rating DECIMAL(10, 2),
+        last_week_rank INT,
+        consecutive_weeks INT,
         CONSTRAINT unique_week_rank UNIQUE (week_date, rank),
         CONSTRAINT unique_week_game UNIQUE (week_date, game_id)
     );
 
     ALTER TABLE weeksheet ADD COLUMN IF NOT EXISTS rating DECIMAL(10, 2);
     ALTER TABLE weeksheet ADD COLUMN IF NOT EXISTS discount INT;
+    ALTER TABLE weeksheet ADD COLUMN IF NOT EXISTS last_week_rank INT;
+    ALTER TABLE weeksheet ADD COLUMN IF NOT EXISTS consecutive_weeks INT;
     ALTER TABLE weeksheet ALTER COLUMN price DROP NOT NULL;
 
     CREATE INDEX IF NOT EXISTS idx_weeksheet_date ON weeksheet (week_date);
@@ -294,6 +298,8 @@ def insert_weeksheet_entries(week_date_str: str, entries: list):
         price_val = entry.get("price", 0)
         rating = entry.get("rating", 0.0)
         discount = entry.get("discount")
+        last_week_rank = entry.get("last_week_rank")
+        consecutive_weeks = entry.get("consecutive_weeks")
 
         if price_val in (None, ""):
             price = None
@@ -305,14 +311,16 @@ def insert_weeksheet_entries(week_date_str: str, entries: list):
 
         if appid and rank:
             upsert_game(appid, name)
-            tuples.append((week_date_str, rank, appid, price, discount, rating))
+            tuples.append((week_date_str, rank, appid, price, discount, rating, last_week_rank, consecutive_weeks))
 
     query = """
-    INSERT INTO weeksheet (week_date, rank, game_id, price, discount, rating)
-    VALUES (%s, %s, %s, %s, %s, %s)
+    INSERT INTO weeksheet (week_date, rank, game_id, price, discount, rating, last_week_rank, consecutive_weeks)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
     ON CONFLICT (week_date, rank) DO UPDATE 
     SET game_id = EXCLUDED.game_id, price = EXCLUDED.price,
-        discount = EXCLUDED.discount, rating = EXCLUDED.rating;
+        discount = EXCLUDED.discount, rating = EXCLUDED.rating,
+        last_week_rank = EXCLUDED.last_week_rank,
+        consecutive_weeks = EXCLUDED.consecutive_weeks;
     """
 
     with conn.cursor() as cur:
@@ -381,3 +389,99 @@ def update_weeksheet_price(game_id, week_date, price, discount):
         """, (price, discount, game_id, week_date))
     conn.commit()
     conn.close()
+
+
+def get_weeksheet_dates_with_null_last_week_rank():
+    """
+    Fetch distinct week_dates from weeksheet where last_week_rank is NULL.
+    Returns a list of date strings ['YYYY-MM-DD', ...].
+    """
+    conn = get_connection()
+    with conn.cursor() as cur:
+        cur.execute("""
+            SELECT DISTINCT week_date
+            FROM weeksheet
+            WHERE last_week_rank IS NULL
+            ORDER BY week_date;
+        """)
+        rows = cur.fetchall()
+    conn.close()
+    return [row[0].strftime("%Y-%m-%d") if hasattr(row[0], "strftime") else str(row[0]) for row in rows]
+
+
+def update_weeksheet_last_week_ranks_batch(week_date_str: str, entries: list):
+    """
+    Batch updates last_week_rank in weeksheet table for a specific week_date.
+    entries: list of dicts with 'rank' and 'last_week_rank'.
+    """
+    if not entries:
+        return 0
+
+    conn = get_connection()
+    tuples = []
+    for entry in entries:
+        rank = entry.get("rank")
+        last_week_rank = entry.get("last_week_rank")
+        if rank is not None:
+            tuples.append((last_week_rank, str(week_date_str), rank))
+
+    query = """
+    UPDATE weeksheet
+    SET last_week_rank = %s
+    WHERE week_date = %s AND rank = %s;
+    """
+
+    with conn.cursor() as cur:
+        execute_batch(cur, query, tuples, page_size=200)
+    conn.commit()
+    conn.close()
+    return len(tuples)
+
+
+def get_weeksheet_dates_with_null_consecutive_weeks():
+    """
+    Fetch distinct week_dates from weeksheet where consecutive_weeks is NULL.
+    Returns a list of date strings ['YYYY-MM-DD', ...].
+    """
+    conn = get_connection()
+    with conn.cursor() as cur:
+        cur.execute("""
+            SELECT DISTINCT week_date
+            FROM weeksheet
+            WHERE consecutive_weeks IS NULL
+            ORDER BY week_date;
+        """)
+        rows = cur.fetchall()
+    conn.close()
+    return [row[0].strftime("%Y-%m-%d") if hasattr(row[0], "strftime") else str(row[0]) for row in rows]
+
+
+def update_weeksheet_consecutive_weeks_batch(week_date_str: str, entries: list):
+    """
+    Batch updates consecutive_weeks in weeksheet table for a specific week_date.
+    entries: list of dicts with 'rank' and 'consecutive_weeks'.
+    """
+    if not entries:
+        return 0
+
+    conn = get_connection()
+    tuples = []
+    for entry in entries:
+        rank = entry.get("rank")
+        consecutive_weeks = entry.get("consecutive_weeks")
+        if rank is not None:
+            tuples.append((consecutive_weeks, str(week_date_str), rank))
+
+    query = """
+    UPDATE weeksheet
+    SET consecutive_weeks = %s
+    WHERE week_date = %s AND rank = %s;
+    """
+
+    with conn.cursor() as cur:
+        execute_batch(cur, query, tuples, page_size=200)
+    conn.commit()
+    conn.close()
+    return len(tuples)
+
+

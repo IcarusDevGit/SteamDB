@@ -1,109 +1,115 @@
+"""CLI for isolated, read-only asynchronous extraction."""
+
+from __future__ import annotations
+
 import argparse
-import csv
+import asyncio
 import os
 import sys
+from pathlib import Path
+from datetime import datetime, timedelta, timezone
 
-import FetchTop100Weekly
-import AppendTags
-import AppendRatings
-import PriceScraper
-import WriteCSV
 import db
+import WriteCSV
+import ValidateEntries
+from extraction_pipeline import CatalogSnapshot, ExtractionPipeline, PipelineConfig
+from request_scheduler import DEFAULT_POLICIES, ProviderGate, ProviderPolicy
+from workflow_clients import RealExtractionClients
+from workflow_paths import weekly_extraction_csv_path
 
 
-def upsert_csv_to_db(csv_filepath: str, week_date_str: str):
-    """
-    Reads entries from .csv file and upserts them to the weeksheet table in PostgreSQL using db.py.
-    """
-    if not week_date_str:
-        week_date_str = FetchTop100Weekly.get_last_closed_tuesday()
-
-    if not os.path.exists(csv_filepath):
-        print(f"CSV file not found: {csv_filepath}")
-        return
-
-    entries = []
-    with open(csv_filepath, "r", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            entries.append({
-                "rank": int(row["rank"]) if row.get("rank") else None,
-                "appid": int(row["appid"]) if row.get("appid") else None,
-                "price": row.get("price") or None,
-                "discount": int(row["discount"]) if row.get("discount") else None,
-                "rating": float(row["rating"]) if row.get("rating") else 0.0,
-                "last_week_rank": int(row["last_week_rank"]) if row.get("last_week_rank") else None,
-                "consecutive_weeks": int(row["consecutive_weeks"]) if row.get("consecutive_weeks") else None,
-            })
-
-    db.insert_weeksheet_entries(week_date_str, entries)
-    print(f"Upserted {len(entries)} entries from '{csv_filepath}' to database 'weeksheet' table for week {week_date_str}.")
+def last_closed_tuesday(now=None) -> str:
+    current = now or datetime.now(timezone.utc)
+    days_since_tuesday = (current.weekday() - 1) % 7
+    candidate = current - timedelta(days=days_since_tuesday)
+    if candidate.date() == current.date():
+        candidate -= timedelta(days=7)
+    return candidate.strftime("%Y-%m-%d")
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="SteamDB Top 100 Collector - Fetches closed chart week and updates database/csv."
+def validate_tuesday(value: str) -> str:
+    try:
+        parsed = datetime.strptime(value, "%Y-%m-%d")
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("date must use YYYY-MM-DD") from exc
+    if parsed.weekday() != 1:
+        raise argparse.ArgumentTypeError(f"{value} is not a Tuesday")
+    return value
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Extract Steam weekly data without database writes")
+    parser.add_argument("dates", nargs="*", type=validate_tuesday, help="one or more Tuesday dates")
+    parser.add_argument("--output", help="optional staging CSV path for one week or directory for multiple weeks")
+    parser.add_argument("--max-entries", type=int, default=int(os.environ.get("PIPELINE_MAX_ENTRIES", "100")))
+    parser.add_argument("--itad-batch-size", type=int, default=int(os.environ.get("ITAD_BATCH_SIZE", "100")))
+    parser.add_argument("--itad-batch-wait", type=float, default=float(os.environ.get("ITAD_BATCH_WAIT", "0.05")))
+    return parser
+
+
+def build_gates():
+    gates = {}
+    for name, default in DEFAULT_POLICIES.items():
+        prefix = name.upper()
+        policy = ProviderPolicy(
+            interval=float(os.environ.get(f"{prefix}_INTERVAL", default.interval)),
+            concurrency=int(os.environ.get(f"{prefix}_CONCURRENCY", default.concurrency)),
+            queue_size=int(os.environ.get(f"{prefix}_QUEUE_SIZE", default.queue_size)),
+            retries=int(os.environ.get(f"{prefix}_RETRIES", default.retries)),
+            backoff_base=default.backoff_base,
+        )
+        gates[name] = ProviderGate(policy)
+    return gates
+
+
+async def extract(dates, *, clients=None, snapshot=None, gates=None, config=None):
+    catalog = snapshot or db.load_catalog_snapshot()
+    pipeline = ExtractionPipeline(
+        clients or RealExtractionClients(),
+        gates or build_gates(),
+        CatalogSnapshot(**catalog),
+        config=config or PipelineConfig(),
     )
-    parser.add_argument(
-        "date_arg",
-        nargs="?",
-        default=None,
-        help="Optional date (YYYY-MM-DD). If provided, fetches closed week for that date. If omitted, uses last closed Tuesday."
+    return await pipeline.run(dates)
+
+
+def _weekly_output(output: str | None, week: str, *, multiple: bool) -> Path:
+    if not output:
+        return weekly_extraction_csv_path(week)
+    requested = Path(output)
+    if multiple:
+        if requested.suffix.lower() == ".csv":
+            raise ValueError("--output must be a directory when multiple weeks are requested")
+        return requested / f"steam_top_100_{week}.csv"
+    return requested
+
+
+def main(argv=None, *, extractor=extract, validator=ValidateEntries.run_validation):
+    args = build_parser().parse_args(argv)
+    dates = args.dates or [last_closed_tuesday()]
+    config = PipelineConfig(
+        max_entries=args.max_entries,
+        itad_batch_size=args.itad_batch_size,
+        itad_batch_wait=args.itad_batch_wait,
     )
-    parser.add_argument(
-        "--date", "-d",
-        type=str,
-        default=None,
-        help="Optional reference date (YYYY-MM-DD)."
-    )
-    args = parser.parse_args()
-
-    # Determine reference date if passed positionally or via --date flag
-    target_date_str = args.date or args.date_arg
-
-    print("Ensuring PostgreSQL database tables exist...")
-    db.create_tables()
-
-    # 1. Fetch top 100 data (appid, name, price, rank)
-    print("\n1. Fetching last closed weekly top sellers from Steam API...")
-    raw_data, closed_week_date = FetchTop100Weekly.main(date_str=target_date_str)
-
-    # 2. Get games from data and append tags with AppendTags.py to any games not found on db
-    print(f"\n2. Processing tags for closed week {closed_week_date} (DB lookup -> scraper fallback -> DB upserts)...")
-    data_with_tags = AppendTags.main(week_date_str=closed_week_date, data=raw_data)
-
-    # 3. Append ratings to data with AppendRatings.py
-    print(f"\n3. Fetching and appending ratings with AppendRatings.py...")
-    data_with_ratings = AppendRatings.main(data=data_with_tags)
-
-    # 4. Replace the current Steam price with its historical value for the chart date.
-    print(f"\n4. Fetching Steam prices for {closed_week_date} with PriceScraper.py...")
-    data_with_prices = PriceScraper.append_prices(data_with_ratings, closed_week_date)
-
-    # Transform to final data structure: [{'rank': 1, 'appid': 730, 'price': 0, 'rating': 0.95}]
-    final_data = []
-    for item in data_with_prices:
-        final_data.append({
-            "rank": item.get("rank"),
-            "appid": item.get("appid"),
-            "name": item.get("name"),
-            "tags": item.get("Tags", ""),
-            "rating": item.get("rating", 0.0),
-            "price": item.get("price"),
-            "discount": item.get("discount"),
-            "last_week_rank": item.get("last_week_rank"),
-            "consecutive_weeks": item.get("consecutive_weeks"),
-        })
-
-    # 5. Write data to .csv using WriteCSV.py
-    csv_filename = "CSV/steam_top_100.csv"
-    print(f"\n5. Writing final data to {csv_filename} using WriteCSV.py...")
-    WriteCSV.main(final_data, filepath=csv_filename)
-
-    # 5. Method for upserting entries from .csv to weeksheet table on db using script on db.py (Commented out per Workflow.md)
-    # print(f"\n5. Upserting entries from {csv_filename} to database weeksheet table...")
-    # upsert_csv_to_db(csv_filename, closed_week_date)
+    unsuccessful = False
+    for week in dates:
+        try:
+            records = asyncio.run(extractor([week], config=config))
+            staging_path = WriteCSV.write_csv(
+                records, _weekly_output(args.output, week, multiple=len(dates) > 1)
+            )
+            result, csv_path, report_path = validator(staging_path)
+            print(
+                f"week={week} status={result.status.value} records={len(records)} "
+                f"CSV={csv_path} REPORT={report_path}"
+            )
+            unsuccessful = unsuccessful or result.status is not ValidateEntries.ValidationStatus.PASSED
+        except Exception as exc:
+            unsuccessful = True
+            print(f"week={week} status=error extraction={exc}", file=sys.stderr)
+    return 1 if unsuccessful else 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

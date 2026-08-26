@@ -1,48 +1,33 @@
-"""
-Writes given data to a .csv file.
-"""
+"""Validation CSV serialization for normalized extraction records."""
+
+from __future__ import annotations
 
 import csv
-import json
-import os
+from pathlib import Path
+
+from workflow_models import ExtractionRecord
+from workflow_paths import extraction_csv_path
 
 
-def write_csv(data: list, filepath: str = "CSV/steam_top_100.csv") -> str:
-    """
-    Writes a list of dictionaries to a CSV file.
-    Expects: rank, appid, name, tags, rating, price, and discount.
-    """
-    if not data:
-        print("No data provided to write to CSV.")
-        return filepath
+FIELDNAMES = [
+    "week_date", "rank", "appid", "name", "tags", "tag_ids",
+    "unresolved_tags", "rating", "price", "discount", "last_week_rank",
+    "consecutive_weeks", "errors",
+]
 
-    fieldnames = ["rank", "appid", "name", "tags", "rating", "price", "discount", "last_week_rank", "consecutive_weeks"]
 
-    with open(filepath, mode="w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
+def write_csv(records, filepath: str | Path | None = None) -> Path:
+    path = Path(filepath) if filepath else extraction_csv_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    rows = [record.to_csv_row() if isinstance(record, ExtractionRecord) else record for record in records]
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=FIELDNAMES, extrasaction="ignore")
         writer.writeheader()
-        for row in data:
-            writer.writerow({
-                "rank": row.get("rank"),
-                "appid": row.get("appid"),
-                "name": row.get("name"),
-                "tags": row.get("tags", row.get("Tags", "")),
-                "rating": row.get("rating"),
-                "price": row.get("price"),
-                "discount": row.get("discount"),
-                "last_week_rank": row.get("last_week_rank"),
-                "consecutive_weeks": row.get("consecutive_weeks"),
-            })
-
-    print(f"Successfully wrote {len(data)} records to {filepath}")
-    return filepath
+        writer.writerows(rows)
+    return path
 
 
-def main(data: list = None, filepath: str = "steam_top_100.csv") -> str:
-    if data is None:
-        data = []
-    return write_csv(data, filepath)
+def read_csv(filepath: str | Path) -> list[dict]:
+    with Path(filepath).open("r", newline="", encoding="utf-8") as handle:
+        return list(csv.DictReader(handle))
 
-
-if __name__ == "__main__":
-    main()

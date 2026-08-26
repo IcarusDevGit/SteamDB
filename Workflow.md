@@ -18,3 +18,4 @@ Files to consider: all the ones that should be modified + AppendTags.py, TagsScr
 Ignore any other files
 
 If any other information is required ask for clarification before starting to develop the code
+

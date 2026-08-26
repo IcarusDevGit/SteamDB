@@ -61,7 +61,7 @@ Develop way of filtering whitelisted tags in power query or power BI
 
 Fetch tags from both steam and steam spy *Done
 
-Filter redundant tags on data analysis (E.g. Single-Player and Singleplayer)
+Filter redundant tags on data analysis (E.g. Single-Player and Singleplayer) *Done
 
 WriteCSV.py needs to have the date in order to upsert it into the database
 
@@ -71,3 +71,10 @@ get price history from IsThereAnyDeal (https://api.isthereanydeal.com/) for game
     get the price during those dates from IsThereAnyDeal and insert it into the weeksheet table
     create a updateprice function for existing games in weeksheet
     add price scraping to the main method
+
+create diagrams and structure for the code using archify and open spec, then rework the code with claude *Done with codex
+
+Rework monolythical UpdateDB.py code *Done
+Update Database entries, FetchTop100 was using US entries instead of global
+The ratings collection proccess might cause issues on newer games
+Add a new script to validate the entries at the end of the proccess using url: https://store.steampowered.com/charts/topsellers/global/{date}

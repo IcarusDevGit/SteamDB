@@ -1,0 +1,406 @@
+{
+  "response": {
+    "ranks": [
+      {
+        "rank": 1,
+        "appid": 1001
+      },
+      {
+        "rank": 2,
+        "appid": 1002
+      },
+      {
+        "rank": 3,
+        "appid": 1003
+      },
+      {
+        "rank": 4,
+        "appid": 1004
+      },
+      {
+        "rank": 5,
+        "appid": 1005
+      },
+      {
+        "rank": 6,
+        "appid": 1006
+      },
+      {
+        "rank": 7,
+        "appid": 1007
+      },
+      {
+        "rank": 8,
+        "appid": 1008
+      },
+      {
+        "rank": 9,
+        "appid": 1009
+      },
+      {
+        "rank": 10,
+        "appid": 1010
+      },
+      {
+        "rank": 11,
+        "appid": 1011
+      },
+      {
+        "rank": 12,
+        "appid": 1012
+      },
+      {
+        "rank": 13,
+        "appid": 1013
+      },
+      {
+        "rank": 14,
+        "appid": 1014
+      },
+      {
+        "rank": 15,
+        "appid": 1015
+      },
+      {
+        "rank": 16,
+        "appid": 1016
+      },
+      {
+        "rank": 17,
+        "appid": 1017
+      },
+      {
+        "rank": 18,
+        "appid": 1018
+      },
+      {
+        "rank": 19,
+        "appid": 1019
+      },
+      {
+        "rank": 20,
+        "appid": 1020
+      },
+      {
+        "rank": 21,
+        "appid": 1021
+      },
+      {
+        "rank": 22,
+        "appid": 1022
+      },
+      {
+        "rank": 23,
+        "appid": 1023
+      },
+      {
+        "rank": 24,
+        "appid": 1024
+      },
+      {
+        "rank": 25,
+        "appid": 1025
+      },
+      {
+        "rank": 26,
+        "appid": 1026
+      },
+      {
+        "rank": 27,
+        "appid": 1027
+      },
+      {
+        "rank": 28,
+        "appid": 1028
+      },
+      {
+        "rank": 29,
+        "appid": 1029
+      },
+      {
+        "rank": 30,
+        "appid": 1030
+      },
+      {
+        "rank": 31,
+        "appid": 1031
+      },
+      {
+        "rank": 32,
+        "appid": 1032
+      },
+      {
+        "rank": 33,
+        "appid": 1033
+      },
+      {
+        "rank": 34,
+        "appid": 1034
+      },
+      {
+        "rank": 35,
+        "appid": 1035
+      },
+      {
+        "rank": 36,
+        "appid": 1036
+      },
+      {
+        "rank": 37,
+        "appid": 1037
+      },
+      {
+        "rank": 38,
+        "appid": 1038
+      },
+      {
+        "rank": 39,
+        "appid": 1039
+      },
+      {
+        "rank": 40,
+        "appid": 1040
+      },
+      {
+        "rank": 41,
+        "appid": 1041
+      },
+      {
+        "rank": 42,
+        "appid": 1042
+      },
+      {
+        "rank": 43,
+        "appid": 1043
+      },
+      {
+        "rank": 44,
+        "appid": 1044
+      },
+      {
+        "rank": 45,
+        "appid": 1045
+      },
+      {
+        "rank": 46,
+        "appid": 1046
+      },
+      {
+        "rank": 47,
+        "appid": 1047
+      },
+      {
+        "rank": 48,
+        "appid": 1048
+      },
+      {
+        "rank": 49,
+        "appid": 1049
+      },
+      {
+        "rank": 50,
+        "appid": 1050
+      },
+      {
+        "rank": 51,
+        "appid": 1051
+      },
+      {
+        "rank": 52,
+        "appid": 1052
+      },
+      {
+        "rank": 53,
+        "appid": 1053
+      },
+      {
+        "rank": 54,
+        "appid": 1054
+      },
+      {
+        "rank": 55,
+        "appid": 1055
+      },
+      {
+        "rank": 56,
+        "appid": 1056
+      },
+      {
+        "rank": 57,
+        "appid": 1057
+      },
+      {
+        "rank": 58,
+        "appid": 1058
+      },
+      {
+        "rank": 59,
+        "appid": 1059
+      },
+      {
+        "rank": 60,
+        "appid": 1060
+      },
+      {
+        "rank": 61,
+        "appid": 1061
+      },
+      {
+        "rank": 62,
+        "appid": 1062
+      },
+      {
+        "rank": 63,
+        "appid": 1063
+      },
+      {
+        "rank": 64,
+        "appid": 1064
+      },
+      {
+        "rank": 65,
+        "appid": 1065
+      },
+      {
+        "rank": 66,
+        "appid": 1066
+      },
+      {
+        "rank": 67,
+        "appid": 1067
+      },
+      {
+        "rank": 68,
+        "appid": 1068
+      },
+      {
+        "rank": 69,
+        "appid": 1069
+      },
+      {
+        "rank": 70,
+        "appid": 1070
+      },
+      {
+        "rank": 71,
+        "appid": 1071
+      },
+      {
+        "rank": 72,
+        "appid": 1072
+      },
+      {
+        "rank": 73,
+        "appid": 1073
+      },
+      {
+        "rank": 74,
+        "appid": 1074
+      },
+      {
+        "rank": 75,
+        "appid": 1075
+      },
+      {
+        "rank": 76,
+        "appid": 1076
+      },
+      {
+        "rank": 77,
+        "appid": 1077
+      },
+      {
+        "rank": 78,
+        "appid": 1078
+      },
+      {
+        "rank": 79,
+        "appid": 1079
+      },
+      {
+        "rank": 80,
+        "appid": 1080
+      },
+      {
+        "rank": 81,
+        "appid": 1081
+      },
+      {
+        "rank": 82,
+        "appid": 1082
+      },
+      {
+        "rank": 83,
+        "appid": 1083
+      },
+      {
+        "rank": 84,
+        "appid": 1084
+      },
+      {
+        "rank": 85,
+        "appid": 1085
+      },
+      {
+        "rank": 86,
+        "appid": 1086
+      },
+      {
+        "rank": 87,
+        "appid": 1087
+      },
+      {
+        "rank": 88,
+        "appid": 1088
+      },
+      {
+        "rank": 89,
+        "appid": 1089
+      },
+      {
+        "rank": 90,
+        "appid": 1090
+      },
+      {
+        "rank": 91,
+        "appid": 1091
+      },
+      {
+        "rank": 92,
+        "appid": 1092
+      },
+      {
+        "rank": 93,
+        "appid": 1093
+      },
+      {
+        "rank": 94,
+        "appid": 1094
+      },
+      {
+        "rank": 95,
+        "appid": 1095
+      },
+      {
+        "rank": 96,
+        "appid": 1096
+      },
+      {
+        "rank": 97,
+        "appid": 1097
+      },
+      {
+        "rank": 98,
+        "appid": 1098
+      },
+      {
+        "rank": 99,
+        "appid": 1099
+      },
+      {
+        "rank": 100,
+        "appid": 1100
+      }
+    ]
+  }
+}

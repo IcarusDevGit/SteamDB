@@ -8,6 +8,7 @@ from typing import Iterable
 from collections import defaultdict
 
 import psycopg2
+from psycopg2.extras import execute_values
 from dotenv import load_dotenv
 
 
@@ -53,28 +54,62 @@ def load_catalog_snapshot():
         connection.close()
 
 
+def prepare_tag_candidates(records: Iterable[dict]) -> list[tuple[int, str]]:
+    """Collapse repeated tag references and reject contradictory mappings."""
+    candidates: dict[int, str] = {}
+    for row in records:
+        tag_ids = list(row.get("tag_ids") or [])
+        tag_names = list(row.get("tag_names") or [])
+        for tag_id, tag_name in zip(tag_ids, tag_names):
+            tag_id = int(tag_id)
+            tag_name = str(tag_name)
+            if tag_id in candidates and candidates[tag_id] != tag_name:
+                raise ValueError(
+                    f"tag id {tag_id} has contradictory names: "
+                    f"{candidates[tag_id]!r} and {tag_name!r}"
+                )
+            candidates.setdefault(tag_id, tag_name)
+    return list(candidates.items())
+
+
+def _bulk_values(cursor, statement: str, values: list[tuple]) -> None:
+    if values:
+        execute_values(cursor, statement, values, page_size=len(values))
+
+
 def apply_validated_records(records: Iterable[dict]) -> int:
     """Atomically upsert resolved entities and reconcile weekly rows as sets."""
     rows = list(records)
     if not rows:
         return 0
+    tag_candidates = prepare_tag_candidates(rows)
+    game_candidates = [
+        (row["appid"], row.get("name", ""), list(row.get("tag_ids") or []))
+        for row in rows
+    ]
+    weeksheet_candidates = [
+        (
+            row["week_date"], row["rank"], row["appid"],
+            row.get("price"), row.get("discount"), row.get("rating"),
+            row.get("last_week_rank"), row.get("consecutive_weeks"),
+        )
+        for row in rows
+    ]
     conn = get_connection()
     try:
         with conn.cursor() as cursor:
-            for row in rows:
-                tag_ids = list(row.get("tag_ids") or [])
-                tag_names = list(row.get("tag_names") or [])
-                for tag_id, tag_name in zip(tag_ids, tag_names):
-                    cursor.execute(
-                        "INSERT INTO tags (id, name) VALUES (%s, %s) "
-                        "ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name;",
-                        (tag_id, tag_name),
-                    )
-                cursor.execute(
-                    "INSERT INTO games (id, name, tags) VALUES (%s, %s, %s) "
-                    "ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, tags = EXCLUDED.tags;",
-                    (row["appid"], row.get("name", ""), tag_ids),
-                )
+            _bulk_values(
+                cursor,
+                "INSERT INTO tags (id, name) VALUES %s "
+                "ON CONFLICT (id) DO NOTHING;",
+                tag_candidates,
+            )
+            _bulk_values(
+                cursor,
+                "INSERT INTO games (id, name, tags) VALUES %s "
+                "ON CONFLICT (id) DO NOTHING;",
+                game_candidates,
+            )
 
             by_week = defaultdict(list)
             for row in rows:
@@ -88,27 +123,23 @@ def apply_validated_records(records: Iterable[dict]) -> int:
                     "WHERE week_date = %s AND game_id = ANY(%s);",
                     (week_date, [row["appid"] for row in week_rows]),
                 )
-            for row in rows:
-                cursor.execute(
-                    """
-                    INSERT INTO weeksheet
-                        (week_date, rank, game_id, price, discount, rating,
-                         last_week_rank, consecutive_weeks)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (week_date, game_id) DO UPDATE SET
-                        rank = EXCLUDED.rank,
-                        price = EXCLUDED.price,
-                        discount = EXCLUDED.discount,
-                        rating = EXCLUDED.rating,
-                        last_week_rank = EXCLUDED.last_week_rank,
-                        consecutive_weeks = EXCLUDED.consecutive_weeks;
-                    """,
-                    (
-                        row["week_date"], row["rank"], row["appid"],
-                        row.get("price"), row.get("discount"), row.get("rating"),
-                        row.get("last_week_rank"), row.get("consecutive_weeks"),
-                    ),
-                )
+            _bulk_values(
+                cursor,
+                """
+                INSERT INTO weeksheet
+                    (week_date, rank, game_id, price, discount, rating,
+                     last_week_rank, consecutive_weeks)
+                VALUES %s
+                ON CONFLICT (week_date, game_id) DO UPDATE SET
+                    rank = EXCLUDED.rank,
+                    price = EXCLUDED.price,
+                    discount = EXCLUDED.discount,
+                    rating = EXCLUDED.rating,
+                    last_week_rank = EXCLUDED.last_week_rank,
+                    consecutive_weeks = EXCLUDED.consecutive_weeks;
+                """,
+                weeksheet_candidates,
+            )
         conn.commit()
         return len(rows)
     except Exception:

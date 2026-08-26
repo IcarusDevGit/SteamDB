@@ -6,9 +6,10 @@ import argparse
 import sys
 from pathlib import Path
 
-from database_updates import APPLY_COMMANDS, REPAIR_COMMANDS
+from database_updates import APPLY_COMMANDS, REPAIR_COMMANDS, RESOLVE_COMMANDS
 from database_updates import apply_validated_csv
 from database_updates.repairs import prices, ratings, weekly_stats
+from workflow_progress import TerminalProgressReporter
 
 # Compatibility imports for callers of the former focused updater module.
 load_approved_csv = apply_validated_csv.load_validated_csv
@@ -68,6 +69,11 @@ def build_parser() -> argparse.ArgumentParser:
     for module in REPAIR_COMMANDS:
         module.register_parser(repair_commands)
 
+    resolve_parser = commands.add_parser("resolve", help="Resolve reviewed artifact data")
+    resolve_commands = resolve_parser.add_subparsers(dest="resolve_command", required=True)
+    for module in RESOLVE_COMMANDS:
+        module.register_parser(resolve_commands)
+
     _register_legacy_aliases(commands)
     return parser
 
@@ -76,7 +82,7 @@ def dispatch(argv=None, *, dependencies=None):
     values = list(sys.argv[1:] if argv is None else argv)
     # Preserve the promoted prototype's ``UpdateDB.py file.csv --approved`` invocation.
     if values and values[0] not in {
-        "apply", "repair", "upsert-csv", "update-null-ratings", "update-null-prices",
+        "apply", "repair", "resolve", "upsert-csv", "update-null-ratings", "update-null-prices",
         "update-last-week-rank", "update_last_week_rank",
         "update-consecutive-weeks", "update_consecutive_weeks", "-h", "--help",
     }:
@@ -86,8 +92,10 @@ def dispatch(argv=None, *, dependencies=None):
 
 
 def main(argv=None, *, dependencies=None) -> int:
+    operation_dependencies = dict(dependencies or {})
+    operation_dependencies.setdefault("reporter", TerminalProgressReporter())
     try:
-        result = dispatch(argv, dependencies=dependencies)
+        result = dispatch(argv, dependencies=operation_dependencies)
     except (OSError, PermissionError, ValueError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 2

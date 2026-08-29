@@ -26,17 +26,20 @@ COMMAND = "tags"
 
 
 def _key(value: str) -> str:
+    """Normalize a tag name for case-insensitive mapping precedence."""
     return str(value).strip().casefold()
 
 
 @dataclass(frozen=True, slots=True)
 class Mapping:
+    """Describe a resolved canonical name, ID, and evidence source."""
     name: str
     tag_id: int
     source: str
 
 
 def parse_explicit_mappings(values) -> dict[str, Mapping]:
+    """Parse unique ``NAME=ID`` overrides and reject contradictory identities."""
     mappings: dict[str, Mapping] = {}
     ids: dict[int, str] = {}
     for value in values or ():
@@ -61,6 +64,7 @@ def parse_explicit_mappings(values) -> dict[str, Mapping]:
 
 
 def _read_csv(path: Path):
+    """Read a non-empty extraction CSV while preserving its column order."""
     with path.open("r", newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
         fields = list(reader.fieldnames or ())
@@ -74,6 +78,7 @@ def _read_csv(path: Path):
 
 
 def _unresolved(rows) -> dict[str, str]:
+    """Collect unique unresolved names while retaining first-seen spelling."""
     values = {}
     for row in rows:
         for name in row["unresolved_tags"].split(","):
@@ -84,6 +89,7 @@ def _unresolved(rows) -> dict[str, str]:
 
 
 def discover(unresolved, catalog, exceptions, steam_tags, explicit):
+    """Resolve names by database, exception, Steam, then explicit precedence."""
     known = {_key(name): Mapping(str(name).strip(), int(tag_id), "database")
              for name, tag_id in catalog.items()}
     canonical = {mapping.tag_id: mapping.name for mapping in known.values()}
@@ -100,6 +106,7 @@ def discover(unresolved, catalog, exceptions, steam_tags, explicit):
 
 
 def _atomic_write(path: Path, writer) -> None:
+    """Write through a sibling temporary file and atomically replace the target."""
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
     os.close(descriptor)
@@ -113,6 +120,7 @@ def _atomic_write(path: Path, writer) -> None:
 
 
 def _rewrite(rows, outcomes):
+    """Merge resolved mappings into rows and return the number changed."""
     changed = 0
     for row in rows:
         names = [value.strip() for value in row["tags"].split(",") if value.strip()]
@@ -151,6 +159,12 @@ def _rewrite(rows, outcomes):
 def resolve_csv(path, *, mappings=(), apply=False, database=db, client=None,
                 validator=ValidateEntries.run_validation, exception_file=None, reporter=None,
                 gate=None):
+    """Discover tag mappings and optionally rewrite then revalidate the CSV.
+
+    Dry runs perform discovery only. Apply mode first verifies existing chart
+    evidence, atomically updates changed artifacts, persists used explicit
+    aliases, and invokes validation to classify the rewritten CSV.
+    """
     path = Path(path)
     explicit = parse_explicit_mappings(mappings)
     fields, rows = _read_csv(path)
@@ -163,6 +177,7 @@ def resolve_csv(path, *, mappings=(), apply=False, database=db, client=None,
     exception_path = Path(exception_file) if exception_file else exceptions_path()
     exceptions = load_exceptions(exception_path)
     preliminary = discover(unresolved, catalog, exceptions, (), {})
+    # Avoid the external tag-list request when local evidence resolves everything.
     needs_steam = any(value is None for value in preliminary.values())
     steam_tags = []
     if needs_steam:
@@ -184,6 +199,7 @@ def resolve_csv(path, *, mappings=(), apply=False, database=db, client=None,
     if not apply:
         return UpdateResult("resolve tags", str(path), proposed=len(resolved), failed=len(missing), messages=messages)
 
+    # Applying mappings is permitted only against the exact previously approved CSV.
     verify_chart_evidence(path)
     changed = _rewrite(rows, outcomes)
     if changed:
@@ -212,14 +228,16 @@ def resolve_csv(path, *, mappings=(), apply=False, database=db, client=None,
 
 
 def register_parser(subparsers):
+    """Register tag discovery and its explicit apply confirmation."""
     parser = subparsers.add_parser(COMMAND, help="Resolve unresolved tags in a reviewed CSV")
-    parser.add_argument("csv", type=Path)
-    parser.add_argument("--map", action="append", default=[], metavar="NAME=ID")
-    parser.add_argument("--apply", action="store_true")
+    parser.add_argument("csv", type=Path, help="reviewed extraction CSV containing unresolved tags")
+    parser.add_argument("--map", action="append", default=[], metavar="NAME=ID", help="explicit tag-name to positive-ID mapping; may be repeated")
+    parser.add_argument("--apply", action="store_true", help="rewrite and revalidate the CSV; default is discovery only")
     parser.set_defaults(handler=run)
 
 
 def run(args, dependencies=None):
+    """Execute tag resolution with injectable database, client, and validator."""
     dependencies = dependencies or {}
     return resolve_csv(args.csv, mappings=args.map, apply=args.apply,
                        database=dependencies.get("database", db),

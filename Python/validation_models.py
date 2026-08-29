@@ -7,6 +7,7 @@ from enum import Enum
 
 
 class ValidationStatus(str, Enum):
+    """Classify validation as successful, discrepant, or operationally failed."""
     PASSED = "passed"
     FAILED = "failed"
     ERROR = "error"
@@ -14,12 +15,14 @@ class ValidationStatus(str, Enum):
 
 @dataclass(frozen=True, order=True)
 class ChartIdentity:
+    """Identify a chart entry by its expected rank and Steam application ID."""
     rank: int
     appid: int
 
 
 @dataclass(frozen=True, order=True)
 class WrongRank:
+    """Describe an application found at a rank other than the CSV rank."""
     appid: int
     expected_rank: int
     actual_rank: int
@@ -27,6 +30,7 @@ class WrongRank:
 
 @dataclass
 class WeeklyValidationResult:
+    """Collect structural and identity differences for one chart week."""
     week: str | None = None
     source_url: str | None = None
     expected_count: int = 0
@@ -40,6 +44,7 @@ class WeeklyValidationResult:
 
     @property
     def has_differences(self) -> bool:
+        """Return whether any count, duplicate, identity, or rank check differs."""
         return bool(
             self.duplicate_ranks
             or self.duplicate_appids
@@ -52,12 +57,14 @@ class WeeklyValidationResult:
 
 @dataclass
 class ValidationResult:
+    """Wrap validation evidence with its CSV digest and schema version."""
     csv_sha256: str
     status: ValidationStatus
     weekly: WeeklyValidationResult
     schema_version: int = 1
 
     def to_dict(self) -> dict:
+        """Return a JSON-ready representation with the enum stored as text."""
         payload = asdict(self)
         payload["status"] = self.status.value
         return payload

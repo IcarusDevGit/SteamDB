@@ -55,6 +55,7 @@ CONTENT_DESCRIPTORS = {
 
 
 def _raise_for_retry(response):
+    """Translate transient HTTP responses for scheduler retry handling."""
     if response.status_code == 429:
         value = response.headers.get("Retry-After")
         raise RetryableRequestError(
@@ -67,6 +68,7 @@ def _raise_for_retry(response):
 
 
 def parse_weekly(payload: dict, week_date: str) -> list[dict]:
+    """Normalize Steam's weekly ranks and deduplicate category identifiers."""
     records = []
     for entry in payload.get("response", {}).get("ranks", []):
         item = entry.get("item", {})
@@ -121,6 +123,7 @@ def parse_histogram_rating(payload: dict, target_date: str) -> float | None:
 
 
 def parse_store_html(html: str) -> StoreData:
+    """Extract unique community tags and the primary purchase offer from HTML."""
     soup = BeautifulSoup(html, "html.parser")
     tags = []
     for element in soup.select("a.app_tag"):
@@ -151,13 +154,21 @@ def parse_store_html(html: str) -> StoreData:
 
 
 class RealExtractionClients:
+    """Adapt blocking Steam and ITAD HTTP APIs to the async pipeline contract.
+
+    Public coroutine methods move their synchronous request counterpart to a
+    worker thread; provider gates outside this class control scheduling.
+    """
     def __init__(self, session=None):
+        """Reuse an injected HTTP session or create one for this client."""
         self.session = session or requests.Session()
 
     async def weekly(self, week_date: str) -> list[dict]:
+        """Fetch and normalize the weekly Steam chart without blocking the loop."""
         return await asyncio.to_thread(self._weekly, week_date)
 
     def _weekly(self, week_date):
+        """Issue the blocking weekly-chart request for a Tuesday timestamp."""
         timestamp = int(datetime.strptime(week_date, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp())
         input_json = {
             # Steam represents the global chart with an empty country code.
@@ -178,9 +189,11 @@ class RealExtractionClients:
         return parse_weekly(response.json(), week_date)
 
     async def tag_list(self) -> list[dict]:
+        """Fetch Steam's canonical tag list in a worker thread."""
         return await asyncio.to_thread(self._tag_list)
 
     def _tag_list(self):
+        """Return normalized IDs and names from Steam's tag-list endpoint."""
         response = self.session.get(
             STEAM_TAG_LIST_URL,
             params={"key": STEAM_API_KEY, "language": "english"},
@@ -194,9 +207,11 @@ class RealExtractionClients:
         ]
 
     async def itad_lookup(self, appids: list[int]) -> dict[int, str | None]:
+        """Resolve Steam IDs to ITAD IDs in a worker thread."""
         return await asyncio.to_thread(self._itad_lookup, appids)
 
     def _itad_lookup(self, appids):
+        """Batch-deduplicate application IDs and call the ITAD lookup API."""
         if not ITAD_API_KEY:
             raise RuntimeError("ITAD_API_KEY is required")
         ids = list(dict.fromkeys(int(value) for value in appids))
@@ -211,9 +226,11 @@ class RealExtractionClients:
         return {appid: payload.get(f"app/{appid}") for appid in ids}
 
     async def itad_history(self, itad_id: str, week_date: str):
+        """Fetch the latest eligible historical deal for a chart week."""
         return await asyncio.to_thread(self._itad_history, itad_id, week_date)
 
     def _itad_history(self, itad_id, week_date):
+        """Select the newest Steam-shop deal no later than the week's Tuesday."""
         start = datetime.strptime(week_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
         end = datetime.combine(start.date(), time.max, tzinfo=timezone.utc)
         response = self.session.get(
@@ -238,9 +255,11 @@ class RealExtractionClients:
         return deal.get("price", {}).get("amount"), deal.get("cut")
 
     async def rating(self, appid: int, week_date: str):
+        """Fetch the cumulative rating through the closed chart week."""
         return await asyncio.to_thread(self._rating, appid, week_date)
 
     def _rating(self, appid, week_date):
+        """Request the review histogram bounded by the next Tuesday."""
         week_start = datetime.strptime(week_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
         week_end = int(week_start.timestamp() + 7 * 24 * 60 * 60)
         response = self.session.get(
@@ -252,9 +271,11 @@ class RealExtractionClients:
         return parse_histogram_rating(response.json(), week_date)
 
     async def steam_html(self, appid: int):
+        """Fetch and parse a Steam store page in a worker thread."""
         return await asyncio.to_thread(self._steam_html, appid)
 
     def _steam_html(self, appid):
+        """Request a mature-content-enabled US store page and parse it."""
         response = self.session.get(
             STEAM_STORE_URL.format(appid=int(appid)),
             params={"cc": "us", "l": "english"},
@@ -266,9 +287,32 @@ class RealExtractionClients:
         return parse_store_html(response.text)
 
     async def categories(self, appid: int, category_ids: list[int]):
+        """Resolve requested category IDs from Steam application details."""
         return await asyncio.to_thread(self._categories, appid, category_ids)
 
+    async def game_name(self, appid: int) -> str | None:
+        """Resolve one English Steam display name in a worker thread."""
+        return await asyncio.to_thread(self._game_name, appid)
+
+    def _game_name(self, appid):
+        """Return a normalized application-details name when Steam supplies one."""
+        response = self.session.get(
+            STEAM_DETAILS_URL,
+            params={"appids": int(appid), "cc": "us", "l": "english"},
+            timeout=TIMEOUT,
+        )
+        _raise_for_retry(response)
+        entry = response.json().get(str(appid), {})
+        if not isinstance(entry, dict) or not entry.get("success"):
+            return None
+        data = entry.get("data")
+        if not isinstance(data, dict) or data.get("name") is None:
+            return None
+        name = str(data["name"]).strip()
+        return name or None
+
     def _categories(self, appid, category_ids):
+        """Return only requested categories, including known content descriptors."""
         response = self.session.get(
             STEAM_DETAILS_URL,
             params={"appids": int(appid), "cc": "us", "l": "english"},

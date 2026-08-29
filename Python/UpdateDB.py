@@ -17,18 +17,22 @@ apply_csv = apply_validated_csv.apply_csv
 
 
 def _legacy_csv(args, dependencies=None):
+    """Translate the hidden legacy CSV option into the active command shape."""
     args.csv = args.csv_option
     return apply_validated_csv.run(args, dependencies)
 
 
 def _legacy_weekly(field):
+    """Create a compatibility handler pinned to one weekly-stat field."""
     def handler(args, dependencies=None):
+        """Delegate a legacy alias to the current weekly-stat repair."""
         args.field = field
         return weekly_stats.run(args, dependencies)
     return handler
 
 
 def _register_legacy_aliases(subparsers):
+    """Register hidden command aliases retained for existing operators."""
     csv_parser = subparsers.add_parser("upsert-csv", help=argparse.SUPPRESS)
     csv_parser.add_argument("--csv", dest="csv_option", type=Path, required=True)
     csv_parser.add_argument("--validation-report", type=Path)
@@ -56,6 +60,7 @@ def _register_legacy_aliases(subparsers):
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Compose apply, repair, resolve, and compatibility command trees."""
     parser = argparse.ArgumentParser(description="Apply reviewed data or run bounded database repairs")
     commands = parser.add_subparsers(dest="command", required=True)
 
@@ -79,6 +84,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def dispatch(argv=None, *, dependencies=None):
+    """Normalize historical invocation forms and call the selected handler."""
     values = list(sys.argv[1:] if argv is None else argv)
     # Preserve the promoted prototype's ``UpdateDB.py file.csv --approved`` invocation.
     if values and values[0] not in {
@@ -92,6 +98,7 @@ def dispatch(argv=None, *, dependencies=None):
 
 
 def main(argv=None, *, dependencies=None) -> int:
+    """Run one update command, render its result, and map input errors to exit 2."""
     operation_dependencies = dict(dependencies or {})
     operation_dependencies.setdefault("reporter", TerminalProgressReporter())
     try:

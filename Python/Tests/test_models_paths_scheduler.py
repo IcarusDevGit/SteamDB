@@ -1,3 +1,5 @@
+"""Exercise shared models, safe artifact paths, and provider scheduling."""
+
 import asyncio
 import tempfile
 import unittest
@@ -10,6 +12,7 @@ import workflow_paths
 
 
 class FakeClock:
+    """Advance deterministic async time while recording requested sleeps."""
     def __init__(self):
         self.value = 0.0
         self.sleeps = []
@@ -24,6 +27,7 @@ class FakeClock:
 
 
 class ModelPathSchedulerTests(unittest.IsolatedAsyncioTestCase):
+    """Verify model invariants, path containment, pacing, and retry limits."""
     def test_record_preserves_zero_and_missing_values(self):
         record = ExtractionRecord("2026-08-04", 1, 10, "Game", rating=0.0, price=0.0, discount=0)
         row = record.to_csv_row()
@@ -56,6 +60,10 @@ class ModelPathSchedulerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(passed.parent, workflow_paths.CSV_DIR)
         with self.assertRaises(ValueError):
             workflow_paths.classified_csv_path("../escape.csv", passed=True)
+
+    def test_upsert_archive_path_is_repository_relative(self):
+        self.assertEqual(workflow_paths.CSV_UPSERTED_DIR, workflow_paths.HELPERS_DIR / "CSV upserted")
+        self.assertEqual(workflow_paths.CSV_UPSERTED_DIR.parent, workflow_paths.HELPERS_DIR)
 
     async def test_rate_limiter_spaces_starts(self):
         clock = FakeClock()

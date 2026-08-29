@@ -17,6 +17,11 @@ FIELDNAMES = [
 
 
 def write_csv(records, filepath: str | Path | None = None) -> Path:
+    """Write records using the stable validation schema and return the path.
+
+    ``ExtractionRecord`` instances are serialized through their model contract;
+    mapping-like rows are passed directly to ``csv.DictWriter``.
+    """
     path = Path(filepath) if filepath else extraction_csv_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     rows = [record.to_csv_row() if isinstance(record, ExtractionRecord) else record for record in records]
@@ -28,6 +33,6 @@ def write_csv(records, filepath: str | Path | None = None) -> Path:
 
 
 def read_csv(filepath: str | Path) -> list[dict]:
+    """Read a validation CSV into dictionaries without applying type coercion."""
     with Path(filepath).open("r", newline="", encoding="utf-8") as handle:
         return list(csv.DictReader(handle))
-

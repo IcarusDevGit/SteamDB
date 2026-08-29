@@ -21,6 +21,7 @@ from workflow_progress import Reporter, TerminalProgressReporter, emit
 
 
 def last_closed_tuesday(now=None) -> str:
+    """Return the latest Tuesday whose chart week has started before today."""
     current = now or datetime.now(timezone.utc)
     days_since_tuesday = (current.weekday() - 1) % 7
     candidate = current - timedelta(days=days_since_tuesday)
@@ -30,6 +31,7 @@ def last_closed_tuesday(now=None) -> str:
 
 
 def validate_tuesday(value: str) -> str:
+    """Validate a CLI date as an ISO-formatted Tuesday."""
     try:
         parsed = datetime.strptime(value, "%Y-%m-%d")
     except ValueError as exc:
@@ -39,17 +41,42 @@ def validate_tuesday(value: str) -> str:
     return value
 
 
+def select_dates(start_date: str | None, end_date: str | None = None, *, now=None) -> list[str]:
+    """Select one week or expand an inclusive range of Tuesday dates."""
+    if start_date is None:
+        if end_date is not None:
+            raise ValueError("end date requires a start date")
+        return [last_closed_tuesday(now)]
+    if end_date is None:
+        return [start_date]
+
+    start = datetime.strptime(start_date, "%Y-%m-%d")
+    end = datetime.strptime(end_date, "%Y-%m-%d")
+    if end < start:
+        raise ValueError("end date must not precede start date")
+
+    dates = []
+    current = start
+    while current <= end:
+        dates.append(current.strftime("%Y-%m-%d"))
+        current += timedelta(days=7)
+    return dates
+
+
 def build_parser() -> argparse.ArgumentParser:
+    """Create the read-only extraction command-line interface."""
     parser = argparse.ArgumentParser(description="Extract Steam weekly data without database writes")
-    parser.add_argument("dates", nargs="*", type=validate_tuesday, help="one or more Tuesday dates")
+    parser.add_argument("start_date", nargs="?", type=validate_tuesday, help="optional first Tuesday date")
+    parser.add_argument("end_date", nargs="?", type=validate_tuesday, help="optional inclusive final Tuesday date")
     parser.add_argument("--output", help="optional staging CSV path for one week or directory for multiple weeks")
-    parser.add_argument("--max-entries", type=int, default=int(os.environ.get("PIPELINE_MAX_ENTRIES", "100")))
-    parser.add_argument("--itad-batch-size", type=int, default=int(os.environ.get("ITAD_BATCH_SIZE", "100")))
-    parser.add_argument("--itad-batch-wait", type=float, default=float(os.environ.get("ITAD_BATCH_WAIT", "0.05")))
+    parser.add_argument("--max-entries", type=int, default=int(os.environ.get("PIPELINE_MAX_ENTRIES", "100")), help="maximum chart entries to process per week")
+    parser.add_argument("--itad-batch-size", type=int, default=int(os.environ.get("ITAD_BATCH_SIZE", "100")), help="maximum app IDs in each IsThereAnyDeal lookup batch")
+    parser.add_argument("--itad-batch-wait", type=float, default=float(os.environ.get("ITAD_BATCH_WAIT", "0.05")), help="seconds to wait between IsThereAnyDeal lookup batches")
     return parser
 
 
 def build_gates(reporter: Reporter | None = None):
+    """Build provider gates, applying environment overrides to default policies."""
     gates = {}
     for name, default in DEFAULT_POLICIES.items():
         prefix = name.upper()
@@ -65,6 +92,7 @@ def build_gates(reporter: Reporter | None = None):
 
 
 async def extract(dates, *, clients=None, snapshot=None, gates=None, config=None, reporter=None):
+    """Construct and run the extraction pipeline with injectable dependencies."""
     catalog = snapshot or db.load_catalog_snapshot()
     pipeline = ExtractionPipeline(
         clients or RealExtractionClients(),
@@ -77,6 +105,7 @@ async def extract(dates, *, clients=None, snapshot=None, gates=None, config=None
 
 
 def _weekly_output(output: str | None, week: str, *, multiple: bool) -> Path:
+    """Resolve a staging file, requiring a directory for multiweek runs."""
     if not output:
         return weekly_extraction_csv_path(week)
     requested = Path(output)
@@ -88,10 +117,12 @@ def _weekly_output(output: str | None, week: str, *, multiple: bool) -> Path:
 
 
 def _record_value(record, name, default=None):
+    """Read a field uniformly from mapping or model extraction records."""
     return record.get(name, default) if isinstance(record, dict) else getattr(record, name, default)
 
 
 def print_unresolved_summary(records, csv_path) -> None:
+    """Print unresolved tags grouped with affected games and a repair command."""
     grouped = {}
     for record in records:
         game = (
@@ -116,8 +147,17 @@ def print_unresolved_summary(records, csv_path) -> None:
 
 
 def main(argv=None, *, extractor=extract, validator=ValidateEntries.run_validation, reporter=None):
-    args = build_parser().parse_args(argv)
-    dates = args.dates or [last_closed_tuesday()]
+    """Extract, stage, validate, and report each requested week independently.
+
+    Processing continues after a failed week; the final exit status reports
+    whether any extraction failed or any validation did not pass.
+    """
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    try:
+        dates = select_dates(args.start_date, args.end_date)
+    except ValueError as exc:
+        parser.error(str(exc))
     config = PipelineConfig(
         max_entries=args.max_entries,
         itad_batch_size=args.itad_batch_size,
@@ -126,12 +166,14 @@ def main(argv=None, *, extractor=extract, validator=ValidateEntries.run_validati
     unsuccessful = False
     progress = reporter or TerminalProgressReporter()
     for week in dates:
+        # Isolate each week so later work survives an earlier provider failure.
         stage = "week"
         emit(progress, "stage_started", week=week, stage=stage)
         try:
             stage = "extraction"
             extractor_kwargs = {"config": config}
             parameters = inspect.signature(extractor).parameters
+            # Compatibility injectors used by tests may not accept a reporter.
             if "reporter" in parameters or any(
                 parameter.kind is inspect.Parameter.VAR_KEYWORD
                 for parameter in parameters.values()

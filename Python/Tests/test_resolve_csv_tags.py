@@ -1,3 +1,5 @@
+"""Test dry-run and applied resolution of tags in reviewed CSV artifacts."""
+
 import csv
 import hashlib
 import json
@@ -14,7 +16,9 @@ from request_scheduler import ProviderGate, ProviderPolicy
 
 
 class ResolveCsvTagsTests(unittest.TestCase):
+    """Verify mapping validation, discovery precedence, rewrites, and revalidation."""
     def make_csv(self, directory, unresolved=" dystopian "):
+        """Create a reviewed CSV and matching digest-bound evidence sidecar."""
         path = Path(directory) / "review.csv"
         with path.open("w", newline="", encoding="utf-8") as handle:
             writer = csv.DictWriter(handle, fieldnames=WriteCSV.FIELDNAMES)
@@ -32,6 +36,7 @@ class ResolveCsvTagsTests(unittest.TestCase):
         return path
 
     def dependencies(self, directory):
+        """Build local-only collaborators that fail if Steam is called needlessly."""
         database = Mock()
         database.load_catalog_snapshot.return_value = {
             "games": {}, "tags_by_name": {"Action": 1, " Dystopian ": 42}

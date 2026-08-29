@@ -1,3 +1,5 @@
+"""Test chart parsing, CSV comparison, evidence, and artifact classification."""
+
 import csv
 import hashlib
 import json
@@ -15,7 +17,9 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 
 class ValidateEntriesTests(unittest.TestCase):
+    """Verify validation status, evidence integrity, and command-line behavior."""
     def _csv(self, directory, identities, *, week="2026-08-04", name="input.csv"):
+        """Create a minimal identity CSV whose enrichment values are irrelevant."""
         path = Path(directory) / name
         with path.open("w", newline="", encoding="utf-8") as handle:
             writer = csv.DictWriter(
@@ -63,12 +67,29 @@ class ValidateEntriesTests(unittest.TestCase):
         )
         request = ValidateEntries.complete_chart_request("2026-08-04")
         self.assertEqual(request["page_count"], 100)
+        self.assertEqual(request["country_code"], "")
         self.assertEqual(request["start_date"], 1785801600)
         payload = json.loads((FIXTURES / "complete_chart.json").read_text(encoding="utf-8"))
         rows = payload["response"]["ranks"]
         self.assertEqual(len(ValidateEntries.parse_complete_chart(payload)), 100)
         with self.assertRaisesRegex(RuntimeError, "instead of 100"):
             ValidateEntries.parse_complete_chart({"response": {"ranks": rows[:99]}})
+
+    def test_detailed_global_rows_normalize_chart_fields(self):
+        rows = [{
+            "rank": rank, "appid": 1000 + rank,
+            "last_week_rank": rank + 1, "consecutive_weeks": rank,
+            "item": {"name": f" Game {rank} "},
+        } for rank in range(1, 101)]
+        normalized = ValidateEntries.parse_complete_chart_rows({"response": {"ranks": rows}})
+        self.assertEqual(normalized[0], {
+            "rank": 1, "appid": 1001, "name": "Game 1",
+            "last_week_rank": 2, "consecutive_weeks": 1,
+        })
+        duplicate = [dict(item) for item in rows]
+        duplicate[-1]["appid"] = 1001
+        with self.assertRaisesRegex(RuntimeError, "duplicate"):
+            ValidateEntries.parse_complete_chart_rows({"response": {"ranks": duplicate}})
 
     def test_fetcher_anchors_page_and_requires_prefix(self):
         html = (FIXTURES / "steam_chart_bootstrap.html").read_text(encoding="utf-8")
@@ -91,6 +112,28 @@ class ValidateEntriesTests(unittest.TestCase):
         session.get.side_effect = [bad_page, api_response]
         with self.assertRaisesRegex(RuntimeError, "prefix"):
             ValidateEntries.SteamChartFetcher(session)("2026-08-04")
+
+    def test_detailed_fetcher_forces_global_request(self):
+        html = (FIXTURES / "steam_chart_bootstrap.html").read_text(encoding="utf-8")
+        complete = [{"rank": rank, "appid": 1000 + rank, "item": {"name": f"Game {rank}"}}
+                    for rank in range(1, 101)]
+        page = Mock(text=html)
+        page.raise_for_status.return_value = None
+        api = Mock()
+        api.raise_for_status.return_value = None
+        api.json.return_value = {"response": {"ranks": complete}}
+        session = Mock()
+        session.get.side_effect = [page, api]
+        events = []
+        _, rows = ValidateEntries.GlobalChartFetcher(session, reporter=events.append)("2026-08-04")
+        request = json.loads(session.get.call_args_list[1].kwargs["params"]["input_json"])
+        self.assertEqual(request["country_code"], "")
+        self.assertEqual(rows[0]["name"], "Game 1")
+        self.assertEqual(
+            [(event.kind, event.fields["phase"]) for event in events],
+            [("unit_started", "rendered_chart"), ("unit_completed", "rendered_chart"),
+             ("unit_started", "complete_chart"), ("unit_completed", "complete_chart")],
+        )
 
     def test_comparison_pass_fail_error_and_atomic_sidecar(self):
         expected = [ChartIdentity(rank, 1000 + rank) for rank in range(1, 101)]

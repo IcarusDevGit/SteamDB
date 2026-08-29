@@ -8,12 +8,14 @@ from typing import Any, Mapping
 
 @dataclass(frozen=True, slots=True)
 class UpdateCandidate:
+    """Describe a potential database mutation before it is applied."""
     identity: str
     values: Mapping[str, Any]
 
 
 @dataclass(frozen=True, slots=True)
 class UpdateResult:
+    """Report aggregate outcomes and operator messages for one update command."""
     operation: str
     target: str
     proposed: int = 0
@@ -24,13 +26,16 @@ class UpdateResult:
 
     @property
     def ok(self) -> bool:
+        """Return whether every candidate avoided a recorded failure."""
         return self.failed == 0
 
     @property
     def exit_code(self) -> int:
+        """Map the aggregate outcome to the command-line success convention."""
         return 0 if self.ok else 1
 
     def render(self) -> str:
+        """Render the summary and detail messages as operator-facing text."""
         summary = (
             f"{self.operation}: target={self.target} proposed={self.proposed} "
             f"applied={self.applied} skipped={self.skipped} failed={self.failed}"
@@ -39,6 +44,7 @@ class UpdateResult:
 
 
 def merge_results(operation: str, target: str, results) -> UpdateResult:
+    """Combine child results while preserving message order."""
     values = tuple(results)
     return UpdateResult(
         operation=operation,

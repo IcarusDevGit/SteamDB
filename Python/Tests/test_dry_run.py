@@ -1,3 +1,5 @@
+"""Check that the extraction pipeline realizes its intended concurrency."""
+
 import asyncio
 import time
 import unittest
@@ -8,6 +10,7 @@ from workflow_models import StoreData
 
 
 class TimedClients:
+    """Simulate equal-latency providers and record dependency ordering."""
     def __init__(self, entries=5):
         self.entries = entries
         self.events = []
@@ -38,6 +41,7 @@ class TimedClients:
 
 
 class DryRunTests(unittest.IsolatedAsyncioTestCase):
+    """Compare concurrent pipeline timing with a conservative serial baseline."""
     async def test_single_and_multi_tuesday_dry_runs_beat_sequential_baseline(self):
         policy = ProviderPolicy(interval=0, concurrency=5, queue_size=10, retries=0)
         gates = {name: ProviderGate(policy) for name in ("steam_web", "steam_store", "itad")}

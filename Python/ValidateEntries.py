@@ -25,6 +25,7 @@ from validation_models import (
 )
 from workflow_clients import HEADERS, STEAM_API_KEY, STEAM_STORE_COUNTRY, STEAM_WEEKLY_URL, TIMEOUT
 from workflow_paths import classified_csv_path
+from workflow_progress import emit
 
 
 CHART_URL = "https://store.steampowered.com/charts/topsellers/global/{date}"
@@ -38,15 +39,22 @@ class ValidationInputError(ValueError):
 
 
 def csv_sha256(path: str | Path) -> str:
+    """Return the content digest that binds a report to its exact CSV bytes."""
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
 def sidecar_path(csv_path: str | Path) -> Path:
+    """Derive the validation report path beside its source CSV."""
     path = Path(csv_path)
     return path.with_name(f"{path.stem}.validation.json")
 
 
 def parse_csv_identities(path: str | Path) -> tuple[str, list[ChartIdentity], list[int], list[int]]:
+    """Parse one Tuesday's identities and report duplicate ranks/app IDs.
+
+    Raises ``ValidationInputError`` for missing columns, malformed values,
+    invalid ranges, empty input, or CSV data spanning more than one week.
+    """
     with Path(path).open("r", newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
         missing = {"week_date", "rank", "appid"} - set(reader.fieldnames or ())
@@ -82,6 +90,7 @@ def parse_csv_identities(path: str | Path) -> tuple[str, list[ChartIdentity], li
 
 
 def _loader_json(html: str) -> list:
+    """Decode the JSON array assigned to Steam Charts' SSR loader variable."""
     soup = BeautifulSoup(html, "html.parser")
     script = next(
         (node.get_text() for node in soup.find_all("script") if "window.SSR.loaderData" in node.get_text()),
@@ -100,6 +109,7 @@ def _loader_json(html: str) -> list:
 
 
 def _find_weekly(value):
+    """Recursively locate a weekly rank object in nested loader data."""
     if isinstance(value, dict):
         weekly = value.get("weekly")
         if isinstance(weekly, dict) and isinstance(weekly.get("rgRanks"), list):
@@ -124,6 +134,7 @@ def _find_weekly(value):
 
 
 def parse_chart_bootstrap(html: str) -> list[ChartIdentity]:
+    """Extract the rendered chart prefix from Steam's page bootstrap."""
     weekly = _find_weekly(_loader_json(html))
     if weekly is None:
         raise RuntimeError("Steam Charts weekly bootstrap was not found")
@@ -140,6 +151,7 @@ def parse_chart_bootstrap(html: str) -> list[ChartIdentity]:
 
 
 def complete_chart_request(week: str) -> dict:
+    """Build the API request for the complete global Top 100 on a Tuesday."""
     timestamp = int(datetime.strptime(week, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp())
     return {
         "country_code": "",
@@ -152,47 +164,100 @@ def complete_chart_request(week: str) -> dict:
 
 
 def parse_complete_chart(payload: dict) -> list[ChartIdentity]:
+    """Validate and return exactly 100 unique, consecutively ranked entries."""
+    return [ChartIdentity(item["rank"], item["appid"]) for item in parse_complete_chart_rows(payload)]
+
+
+def parse_complete_chart_rows(payload: dict) -> list[dict]:
+    """Validate and normalize complete global rows needed by identity repair."""
     rows = payload.get("response", {}).get("ranks", [])
-    identities = []
+    normalized = []
     for item in rows:
-        appid = item.get("appid", (item.get("item") or {}).get("appid"))
+        basic = item.get("item") or {}
+        appid = item.get("appid", basic.get("appid"))
         rank = item.get("rank", item.get("nRank"))
         if appid is None or rank is None:
             raise RuntimeError("complete Steam chart contains a non-application entry")
-        identities.append(ChartIdentity(int(rank), int(appid)))
-    if len(identities) != 100:
-        raise RuntimeError(f"complete Steam chart returned {len(identities)} entries instead of 100")
-    if sorted(item.rank for item in identities) != list(range(1, 101)):
+        name = str(basic.get("name") or "").strip()
+        normalized.append({
+            "rank": int(rank), "appid": int(appid), "name": name,
+            "last_week_rank": item.get("last_week_rank"),
+            "consecutive_weeks": item.get("consecutive_weeks"),
+        })
+    if len(normalized) != 100:
+        raise RuntimeError(f"complete Steam chart returned {len(normalized)} entries instead of 100")
+    if sorted(item["rank"] for item in normalized) != list(range(1, 101)):
         raise RuntimeError("complete Steam chart does not contain ranks 1 through 100 exactly once")
-    if len({item.appid for item in identities}) != 100:
+    if len({item["appid"] for item in normalized}) != 100:
         raise RuntimeError("complete Steam chart contains duplicate application identifiers")
-    return sorted(identities)
+    return sorted(normalized, key=lambda item: item["rank"])
+
+
+class GlobalChartFetcher:
+    """Fetch prefix-checked detailed rows from the explicitly global chart."""
+
+    def __init__(self, session=None, reporter=None):
+        self.session = session or requests.Session()
+        self.reporter = reporter
+
+    def __call__(self, week: str) -> tuple[str, list[dict]]:
+        url = CHART_URL.format(date=week)
+        identity = f"week={week}"
+        emit(self.reporter, "unit_started", operation="repair_weekly_identities",
+             phase="rendered_chart", identity=identity)
+        try:
+            page = self.session.get(url, headers=HEADERS, timeout=TIMEOUT)
+            page.raise_for_status()
+            rendered = parse_chart_bootstrap(page.text)
+        except Exception as exc:
+            emit(self.reporter, "unit_completed", operation="repair_weekly_identities",
+                 phase="rendered_chart", identity=identity, outcome="failed", error=exc)
+            raise
+        emit(self.reporter, "unit_completed", operation="repair_weekly_identities",
+             phase="rendered_chart", identity=identity, outcome="completed")
+        emit(self.reporter, "unit_started", operation="repair_weekly_identities",
+             phase="complete_chart", identity=identity)
+        try:
+            response = self.session.get(
+                STEAM_WEEKLY_URL,
+                params={"key": STEAM_API_KEY, "input_json": json.dumps(complete_chart_request(week))},
+                timeout=TIMEOUT,
+            )
+            response.raise_for_status()
+        except Exception as exc:
+            emit(self.reporter, "unit_completed", operation="repair_weekly_identities",
+                 phase="complete_chart", identity=identity, outcome="failed", error=exc)
+            raise
+        try:
+            rows = parse_complete_chart_rows(response.json())
+        except Exception as exc:
+            emit(self.reporter, "unit_completed", operation="repair_weekly_identities",
+                 phase="complete_chart", identity=identity, outcome="failed", error=exc)
+            raise
+        emit(self.reporter, "unit_completed", operation="repair_weekly_identities",
+             phase="complete_chart", identity=identity, outcome="completed")
+        identities = [ChartIdentity(item["rank"], item["appid"]) for item in rows]
+        if identities[: len(rendered)] != rendered:
+            raise RuntimeError("Steam page bootstrap does not match the complete global chart prefix")
+        return url, rows
 
 
 class SteamChartFetcher:
+    """Fetch and cross-check Steam's rendered chart prefix and complete API list."""
     def __init__(self, session=None):
+        """Reuse an injected HTTP session or create a validation session."""
         self.session = session or requests.Session()
 
     def __call__(self, week: str) -> tuple[str, list[ChartIdentity]]:
-        url = CHART_URL.format(date=week)
-        page = self.session.get(url, headers=HEADERS, timeout=TIMEOUT)
-        page.raise_for_status()
-        rendered = parse_chart_bootstrap(page.text)
-        response = self.session.get(
-            STEAM_WEEKLY_URL,
-            params={"key": STEAM_API_KEY, "input_json": json.dumps(complete_chart_request(week))},
-            timeout=TIMEOUT,
-        )
-        response.raise_for_status()
-        complete = parse_complete_chart(response.json())
-        if complete[: len(rendered)] != rendered:
-            raise RuntimeError("Steam page bootstrap does not match the complete global chart prefix")
-        return url, complete
+        """Return the source URL and verified complete identities for a week."""
+        url, rows = GlobalChartFetcher(self.session)(week)
+        return url, [ChartIdentity(item["rank"], item["appid"]) for item in rows]
 
 
 def compare_identities(
     actual: list[ChartIdentity], expected: list[ChartIdentity], weekly: WeeklyValidationResult
 ) -> None:
+    """Populate missing, unexpected, and moved identities on a weekly result."""
     expected_by_rank = {item.rank: item.appid for item in expected}
     actual_by_rank = {item.rank: item.appid for item in actual}
     expected_by_appid = {item.appid: item.rank for item in expected}
@@ -211,9 +276,11 @@ def compare_identities(
 
 
 def write_report(path: Path, result: ValidationResult) -> Path:
+    """Atomically replace a JSON evidence sidecar and clean up failed temp files."""
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
     try:
+        # Write beside the destination so os.replace remains atomic on one volume.
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             json.dump(result.to_dict(), handle, indent=2, sort_keys=True)
             handle.write("\n")
@@ -228,6 +295,11 @@ def write_report(path: Path, result: ValidationResult) -> Path:
 
 
 def validate_csv(csv_path: str | Path, *, fetcher=None) -> tuple[ValidationResult, Path]:
+    """Validate a CSV and always emit a digest-bound evidence report.
+
+    Input, network, and comparison errors become an ``ERROR`` result instead of
+    escaping; failures while writing the evidence report still propagate.
+    """
     path = Path(csv_path)
     digest = csv_sha256(path)
     weekly = WeeklyValidationResult()
@@ -253,6 +325,7 @@ def validate_csv(csv_path: str | Path, *, fetcher=None) -> tuple[ValidationResul
 
 
 def classify_artifacts(csv_path: str | Path, report_path: str | Path, status: ValidationStatus):
+    """Move a CSV/report pair to the passed or error area without overwriting."""
     source_csv = Path(csv_path)
     source_report = Path(report_path)
     target_csv = classified_csv_path(source_csv.name, passed=status is ValidationStatus.PASSED)
@@ -276,6 +349,7 @@ def classify_artifacts(csv_path: str | Path, report_path: str | Path, status: Va
 
 
 def run_validation(csv_path: str | Path, *, fetcher=None, classify=True):
+    """Validate a CSV and optionally classify both artifact files together."""
     result, report = validate_csv(csv_path, fetcher=fetcher)
     final_csv, final_report = (
         classify_artifacts(csv_path, report, result.status) if classify else (Path(csv_path), report)
@@ -284,12 +358,14 @@ def run_validation(csv_path: str | Path, *, fetcher=None, classify=True):
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Create the single-CSV validation command-line parser."""
     parser = argparse.ArgumentParser(description="Validate one weekly extraction CSV against Steam Top 100")
-    parser.add_argument("csv", type=Path)
+    parser.add_argument("csv", type=Path, help="weekly extraction CSV to validate and classify")
     return parser
 
 
 def main(argv=None) -> int:
+    """Run validation, print artifact locations, and return a status exit code."""
     args = build_parser().parse_args(argv)
     result, csv_path, report_path = run_validation(args.csv)
     print(f"status={result.status.value} week={result.weekly.week or 'unknown'}")

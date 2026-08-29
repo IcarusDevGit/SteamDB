@@ -73,6 +73,7 @@ def prepare_tag_candidates(records: Iterable[dict]) -> list[tuple[int, str]]:
 
 
 def _bulk_values(cursor, statement: str, values: list[tuple]) -> None:
+    """Execute one values-based bulk statement when candidates are present."""
     if values:
         execute_values(cursor, statement, values, page_size=len(values))
 
@@ -95,6 +96,7 @@ def apply_validated_records(records: Iterable[dict]) -> int:
         )
         for row in rows
     ]
+    # Every entity and weekly-row mutation shares one all-or-nothing transaction.
     conn = get_connection()
     try:
         with conn.cursor() as cursor:
@@ -148,110 +150,3 @@ def apply_validated_records(records: Iterable[dict]) -> int:
     finally:
         conn.close()
 
-
-def _find_missing(column_sql: str, *, week=None, appid=None, limit=None):
-    clauses = [column_sql]
-    params = []
-    if week:
-        clauses.append("week_date = %s")
-        params.append(week)
-    if appid:
-        clauses.append("game_id = %s")
-        params.append(appid)
-    query = (
-        "SELECT game_id, week_date FROM weeksheet WHERE "
-        + " AND ".join(clauses)
-        + " ORDER BY week_date, game_id"
-    )
-    if limit:
-        query += " LIMIT %s"
-        params.append(limit)
-    connection = get_connection()
-    try:
-        with connection.cursor() as cursor:
-            cursor.execute(query, tuple(params))
-            return [{"appid": row[0], "week_date": row[1]} for row in cursor.fetchall()]
-    finally:
-        connection.close()
-
-
-def find_missing_ratings(*, week=None, appid=None, limit=None):
-    return _find_missing("rating IS NULL", week=week, appid=appid, limit=limit)
-
-
-def find_missing_prices(*, week=None, appid=None, limit=None):
-    return _find_missing("(price IS NULL OR discount IS NULL)", week=week, appid=appid, limit=limit)
-
-
-def _apply_repairs(updates, statement, values):
-    rows = list(updates)
-    if not rows:
-        return 0
-    connection = get_connection()
-    try:
-        applied = 0
-        with connection.cursor() as cursor:
-            for row in rows:
-                cursor.execute(statement, values(row))
-                applied += max(cursor.rowcount, 0)
-        connection.commit()
-        return applied
-    except Exception:
-        connection.rollback()
-        raise
-    finally:
-        connection.close()
-
-
-def apply_rating_repairs(updates):
-    return _apply_repairs(
-        updates,
-        "UPDATE weeksheet SET rating = %s WHERE week_date = %s AND game_id = %s AND rating IS NULL;",
-        lambda row: (row["rating"], row["week_date"], row["appid"]),
-    )
-
-
-def apply_price_repairs(updates):
-    return _apply_repairs(
-        updates,
-        "UPDATE weeksheet SET price = COALESCE(price, %s), discount = COALESCE(discount, %s) "
-        "WHERE week_date = %s AND game_id = %s AND (price IS NULL OR discount IS NULL);",
-        lambda row: (row.get("price"), row.get("discount"), row["week_date"], row["appid"]),
-    )
-
-
-def apply_weekly_stat_repairs(updates):
-    rows = list(updates)
-    if not rows:
-        return 0
-    connection = get_connection()
-    try:
-        applied = 0
-        with connection.cursor() as cursor:
-            for row in rows:
-                if "last_week_rank" in row and "consecutive_weeks" in row:
-                    cursor.execute(
-                        "UPDATE weeksheet SET last_week_rank = %s, consecutive_weeks = %s "
-                        "WHERE week_date = %s AND rank = %s;",
-                        (row["last_week_rank"], row["consecutive_weeks"], row["week_date"], row["rank"]),
-                    )
-                    applied += max(cursor.rowcount, 0)
-                elif "last_week_rank" in row:
-                    cursor.execute(
-                        "UPDATE weeksheet SET last_week_rank = %s WHERE week_date = %s AND rank = %s;",
-                        (row["last_week_rank"], row["week_date"], row["rank"]),
-                    )
-                    applied += max(cursor.rowcount, 0)
-                else:
-                    cursor.execute(
-                        "UPDATE weeksheet SET consecutive_weeks = %s WHERE week_date = %s AND rank = %s;",
-                        (row["consecutive_weeks"], row["week_date"], row["rank"]),
-                    )
-                    applied += max(cursor.rowcount, 0)
-        connection.commit()
-        return applied
-    except Exception:
-        connection.rollback()
-        raise
-    finally:
-        connection.close()

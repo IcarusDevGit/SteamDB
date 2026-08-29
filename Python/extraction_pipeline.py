@@ -14,26 +14,31 @@ from workflow_progress import Reporter, emit
 
 
 class ExtractionClients(Protocol):
+    """Define provider operations consumed by the extraction orchestrator."""
     async def weekly(self, week_date: str) -> list[dict]: ...
     async def itad_lookup(self, appids: list[int]) -> dict[int, str | None]: ...
     async def itad_history(self, itad_id: str, week_date: str) -> tuple[float | None, int | None]: ...
     async def rating(self, appid: int, week_date: str) -> float | None: ...
     async def steam_html(self, appid: int) -> StoreData: ...
+    async def game_name(self, appid: int) -> str | None: ...
     async def categories(self, appid: int, category_ids: list[int]) -> dict[int, str]: ...
 
 
 @dataclass(slots=True)
 class CatalogSnapshot:
+    """Provide the pipeline with existing game-tag and tag-name mappings."""
     games: dict[int, list[int]] = field(default_factory=dict)
     tags_by_name: dict[str, int] = field(default_factory=dict)
 
     @property
     def tag_names_by_id(self) -> dict[int, str]:
+        """Invert the catalog tag mapping for canonical-name lookup."""
         return {int(tag_id): name for name, tag_id in self.tags_by_name.items()}
 
 
 @dataclass(frozen=True)
 class PipelineConfig:
+    """Set entry concurrency and ITAD identifier batching thresholds."""
     max_entries: int = 100
     itad_batch_size: int = 100
     itad_batch_wait: float = 0.05
@@ -45,6 +50,7 @@ class ItadLookupBatcher:
     _STOP = object()
 
     def __init__(self, lookup, *, batch_size: int, max_wait: float):
+        """Configure the lookup callback and batch flush thresholds."""
         if batch_size < 1 or max_wait < 0:
             raise ValueError("batch size must be positive and max wait cannot be negative")
         self.lookup = lookup
@@ -54,10 +60,12 @@ class ItadLookupBatcher:
         self.worker = None
 
     async def start(self):
+        """Start the single queue consumer if it is not already running."""
         if self.worker is None:
             self.worker = asyncio.create_task(self._run())
 
     async def submit(self, appid: int) -> str | None:
+        """Queue an application ID and await its result from a shared batch."""
         if self.worker is None:
             await self.start()
         future = asyncio.get_running_loop().create_future()
@@ -65,6 +73,7 @@ class ItadLookupBatcher:
         return await future
 
     async def close(self):
+        """Flush pending work, stop the consumer, and make restart possible."""
         if self.worker is None:
             return
         await self.queue.put(self._STOP)
@@ -72,12 +81,14 @@ class ItadLookupBatcher:
         self.worker = None
 
     async def _run(self):
+        """Drain queued requests into size- or time-bounded lookup batches."""
         stopping = False
         while not stopping:
             item = await self.queue.get()
             if item is self._STOP:
                 return
             batch = [item]
+            # Once the first item arrives, cap how long later items may coalesce.
             deadline = asyncio.get_running_loop().time() + self.max_wait
             while len(batch) < self.batch_size:
                 remaining = deadline - asyncio.get_running_loop().time()
@@ -106,6 +117,11 @@ class ItadLookupBatcher:
 
 
 class ExtractionPipeline:
+    """Coordinate provider calls and enrich weekly entries into terminal records.
+
+    The pipeline owns per-run concurrency limits and shared request caches while
+    provider gates own rate limiting, queue capacity, and retries.
+    """
     def __init__(
         self,
         clients: ExtractionClients,
@@ -116,6 +132,7 @@ class ExtractionPipeline:
         exceptions: dict[str, int] | None = None,
         reporter: Reporter | None = None,
     ):
+        """Bind provider clients, gates, catalog state, and progress reporting."""
         self.clients = clients
         self.gates = gates
         self.snapshot = snapshot
@@ -128,6 +145,11 @@ class ExtractionPipeline:
         self._cache_lock = asyncio.Lock()
 
     async def run(self, week_dates: Iterable[str]) -> list[ExtractionRecord]:
+        """Extract and enrich all requested weeks, returning stable sorted output.
+
+        Weekly-fetch or identifier-lookup failures abort the run. Individual
+        enrichment failures are recorded on their record as terminal states.
+        """
         records: list[ExtractionRecord] = []
         for week_date in week_dates:
             emit(self.reporter, "stage_started", week=week_date, stage="weekly_fetch")
@@ -142,6 +164,7 @@ class ExtractionPipeline:
                 stage="weekly_fetch", records=len(items),
             )
 
+        # Ratings can begin while the shared ITAD identifier lookup is assembled.
         rating_tasks = {id(record): asyncio.create_task(self._rating_branch(record)) for record in records}
         emit(self.reporter, "stage_started", stage="identifier_lookup", records=len(records))
         try:
@@ -155,10 +178,12 @@ class ExtractionPipeline:
         total = len(records)
 
         async def enrich(record: ExtractionRecord) -> None:
+            """Finish dependent branches for one record within entry capacity."""
             nonlocal completed
             async with self._entry_capacity:
                 record.itad_id = mappings.get(record.appid)
                 await asyncio.gather(self._itad_and_store_branch(record), rating_tasks[id(record)])
+                # Tag resolution depends on store/category data produced above.
                 await self._tag_branch(record)
                 if not record.complete:
                     raise RuntimeError(f"record {record.appid} did not reach terminal state")
@@ -195,6 +220,7 @@ class ExtractionPipeline:
         return sorted(records, key=lambda record: (record.week_date, record.rank, record.appid))
 
     async def _lookup_all(self, records: list[ExtractionRecord]) -> dict[int, str | None]:
+        """Deduplicate application IDs and resolve them through batched ITAD calls."""
         unique_appids = list(dict.fromkeys(record.appid for record in records))
         batcher = ItadLookupBatcher(
             lambda appids: self.gates["itad"].run(lambda: self.clients.itad_lookup(appids)),
@@ -203,11 +229,13 @@ class ExtractionPipeline:
         )
         await batcher.start()
         submissions = {appid: asyncio.create_task(batcher.submit(appid)) for appid in unique_appids}
+        # Yield once so submit tasks enqueue before the explicit close sentinel.
         await asyncio.sleep(0)
         await batcher.close()
         return {appid: await task for appid, task in submissions.items()}
 
     async def _rating_branch(self, record: ExtractionRecord) -> None:
+        """Populate rating data and convert provider failures to record errors."""
         record.rating_state = BranchState.RUNNING
         try:
             record.rating = await self.gates["steam_store"].run(
@@ -219,6 +247,11 @@ class ExtractionPipeline:
             record.errors.append(f"rating: {exc}")
 
     async def _itad_and_store_branch(self, record: ExtractionRecord) -> None:
+        """Resolve historical price data, falling back to Steam when needed.
+
+        Steam HTML is also fetched when catalog tags are unavailable. Failures
+        are isolated to the record and expressed through branch state and errors.
+        """
         record.itad_state = BranchState.RUNNING
         if record.itad_id is None:
             record.itad_state = BranchState.ABSENT
@@ -262,6 +295,7 @@ class ExtractionPipeline:
             record.errors.append(f"steam_html: {exc}")
 
     async def _store_data(self, appid: int) -> StoreData:
+        """Return one shared in-flight or completed Steam HTML task per app ID."""
         async with self._cache_lock:
             task = self._store_cache.get(appid)
             if task is None:
@@ -272,6 +306,7 @@ class ExtractionPipeline:
         return await task
 
     async def _tag_branch(self, record: ExtractionRecord) -> None:
+        """Prefer catalog tags, otherwise merge community and category metadata."""
         existing_ids = self.snapshot.games.get(record.appid)
         if existing_ids is not None:
             record.tag_ids = list(existing_ids)

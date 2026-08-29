@@ -9,11 +9,13 @@ from typing import Any, Callable, Mapping, Protocol, TextIO
 
 @dataclass(frozen=True, slots=True)
 class ProgressEvent:
+    """Carry a typed event name and structured fields between workflow layers."""
     kind: str
     fields: Mapping[str, Any] = field(default_factory=dict)
 
 
 class ProgressReporter(Protocol):
+    """Define the callback accepted by progress-aware workflow functions."""
     def __call__(self, event: ProgressEvent) -> None: ...
 
 
@@ -21,11 +23,13 @@ Reporter = Callable[[ProgressEvent], None]
 
 
 def emit(reporter: Reporter | None, kind: str, **fields: Any) -> None:
+    """Send an event when reporting is enabled, otherwise remain a no-op."""
     if reporter is not None:
         reporter(ProgressEvent(kind, fields))
 
 
 def _safe(value: Any) -> str:
+    """Collapse multiline values so one event always occupies one terminal line."""
     return " ".join(str(value).splitlines()).strip()
 
 
@@ -33,9 +37,11 @@ class TerminalProgressReporter:
     """Render progress as atomic, immediately visible single-line messages."""
 
     def __init__(self, stream: TextIO | None = None):
+        """Use the supplied stream, or standard error when it is omitted."""
         self.stream = stream
 
     def __call__(self, event: ProgressEvent) -> None:
+        """Render and immediately flush one structured progress event."""
         fields = dict(event.fields)
         prefix = ""
         if "completed" in fields and "total" in fields:

@@ -1,11 +1,15 @@
+"""Test provider payload parsers and canonical tag-resolution precedence."""
+
 import unittest
 from datetime import datetime, timezone
+from unittest.mock import Mock
 
 from tag_resolution import merge_category_ids, resolve_tags
-from workflow_clients import parse_histogram_rating, parse_store_html, parse_weekly
+from workflow_clients import RealExtractionClients, parse_histogram_rating, parse_store_html, parse_weekly
 
 
 class ClientAndTagTests(unittest.TestCase):
+    """Verify normalization of weekly data, ratings, offers, and tag identities."""
     def test_weekly_parser_normalizes_required_fields(self):
         payload = {"response": {"ranks": [{
             "rank": 1,
@@ -72,6 +76,35 @@ class ClientAndTagTests(unittest.TestCase):
         self.assertEqual(result.ids, [57])
         self.assertEqual(result.names, ["DualSense Controller Support"])
         self.assertEqual(result.missing, {})
+
+    def test_game_name_normalizes_application_details_and_unavailable_values(self):
+        response = Mock(status_code=200, headers={})
+        response.raise_for_status.return_value = None
+        session = Mock()
+        session.get.return_value = response
+        client = RealExtractionClients(session)
+        cases = (
+            ({"10": {"success": True, "data": {"name": "  Portal  "}}}, "Portal"),
+            ({"10": {"success": False}}, None),
+            ({"10": {"success": True, "data": {}}}, None),
+            ({"10": {"success": True, "data": {"name": "   "}}}, None),
+            ({"10": []}, None),
+        )
+        for payload, expected in cases:
+            with self.subTest(payload=payload):
+                response.json.return_value = payload
+                self.assertEqual(client._game_name(10), expected)
+        session.get.assert_called_with(
+            "https://store.steampowered.com/api/appdetails",
+            params={"appids": 10, "cc": "us", "l": "english"}, timeout=20,
+        )
+
+    def test_game_name_propagates_provider_failures(self):
+        response = Mock(status_code=404, headers={})
+        response.raise_for_status.side_effect = RuntimeError("provider failed")
+        client = RealExtractionClients(Mock(get=Mock(return_value=response)))
+        with self.assertRaisesRegex(RuntimeError, "provider failed"):
+            client._game_name(10)
 
 
 if __name__ == "__main__":

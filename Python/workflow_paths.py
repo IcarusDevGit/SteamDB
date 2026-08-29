@@ -10,11 +10,13 @@ REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
 HELPERS_DIR = REPOSITORY_ROOT / "helpers"
 CSV_DIR = HELPERS_DIR / "CSV"
 CSV_ERROR_DIR = HELPERS_DIR / "CSV_error"
+CSV_UPSERTED_DIR = HELPERS_DIR / "CSV upserted"
 EXCEPTIONS_PATH = HELPERS_DIR / "Exceptions.json"
 LEGACY_EXCEPTIONS_PATH = REPOSITORY_ROOT / "JSON" / "TagsExceptions.JSON"
 
 
 def helper_path(filename: str) -> Path:
+    """Resolve and create a helper path, rejecting traversal outside helpers."""
     path = (HELPERS_DIR / filename).resolve()
     if HELPERS_DIR.resolve() not in path.parents:
         raise ValueError("helper filename must stay within the helpers directory")
@@ -23,11 +25,13 @@ def helper_path(filename: str) -> Path:
 
 
 def extraction_csv_path(now: datetime | None = None) -> Path:
+    """Return a timestamped default path for an unclassified extraction CSV."""
     timestamp = (now or datetime.now(timezone.utc)).strftime("%Y%m%dT%H%M%SZ")
     return helper_path(f"steam_top_100_{timestamp}.csv")
 
 
 def classified_csv_path(filename: str, *, passed: bool) -> Path:
+    """Resolve a filename inside the passed or failed validation directory."""
     directory = CSV_DIR if passed else CSV_ERROR_DIR
     path = (directory / filename).resolve()
     if directory.resolve() not in path.parents:
@@ -37,6 +41,7 @@ def classified_csv_path(filename: str, *, passed: bool) -> Path:
 
 
 def weekly_extraction_csv_path(week: str, now: datetime | None = None) -> Path:
+    """Create a unique staging path for a Tuesday's extraction output."""
     parsed = datetime.strptime(week, "%Y-%m-%d")
     if parsed.weekday() != 1:
         raise ValueError("extraction week must be a Tuesday")
@@ -47,4 +52,5 @@ def weekly_extraction_csv_path(week: str, now: datetime | None = None) -> Path:
 
 
 def exceptions_path() -> Path:
+    """Prefer the active exception map and fall back to the legacy location."""
     return EXCEPTIONS_PATH if EXCEPTIONS_PATH.exists() else LEGACY_EXCEPTIONS_PATH

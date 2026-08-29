@@ -8,6 +8,7 @@ from typing import Any
 
 
 class BranchState(str, Enum):
+    """Track whether one independent enrichment branch can still do work."""
     PENDING = "pending"
     RUNNING = "running"
     SUCCEEDED = "succeeded"
@@ -17,6 +18,7 @@ class BranchState(str, Enum):
 
     @property
     def terminal(self) -> bool:
+        """Return whether the branch has reached a final outcome."""
         return self in {
             BranchState.SUCCEEDED,
             BranchState.ABSENT,
@@ -27,6 +29,7 @@ class BranchState(str, Enum):
 
 @dataclass(slots=True)
 class StoreData:
+    """Hold the price, discount, and community tags parsed from Steam."""
     price: float | None = None
     discount: int | None = None
     tags: list[str] = field(default_factory=list)
@@ -34,6 +37,7 @@ class StoreData:
 
 @dataclass(slots=True)
 class ExtractionRecord:
+    """Accumulate one chart entry as independent enrichment branches finish."""
     week_date: str
     rank: int
     appid: int
@@ -55,6 +59,7 @@ class ExtractionRecord:
 
     @classmethod
     def from_weekly(cls, item: dict[str, Any], week_date: str) -> "ExtractionRecord":
+        """Create a partially populated record from a weekly-chart payload."""
         return cls(
             week_date=week_date,
             rank=int(item["rank"]),
@@ -67,6 +72,7 @@ class ExtractionRecord:
 
     @property
     def complete(self) -> bool:
+        """Return whether every required enrichment branch is terminal."""
         return (
             self.itad_state.terminal
             and self.rating_state.terminal
@@ -74,6 +80,7 @@ class ExtractionRecord:
         )
 
     def to_csv_row(self) -> dict[str, Any]:
+        """Serialize the normalized record into the validation CSV schema."""
         return {
             "week_date": self.week_date,
             "rank": self.rank,

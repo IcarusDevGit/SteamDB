@@ -1,3 +1,5 @@
+"""Enforce import and module-search isolation between active and legacy trees."""
+
 import ast
 import unittest
 from pathlib import Path
@@ -7,6 +9,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
 
 def imported_modules(tree: Path):
+    """Yield each Python path followed by modules imported from its syntax tree."""
     for path in tree.rglob("*.py"):
         source = path.read_text(encoding="utf-8")
         parsed = ast.parse(source, filename=str(path))
@@ -18,6 +21,7 @@ def imported_modules(tree: Path):
 
 
 class TreeIsolationTests(unittest.TestCase):
+    """Prevent accidental dependencies between active and retired implementations."""
     def test_active_and_legacy_trees_do_not_import_each_other(self):
         active = REPOSITORY_ROOT / "Python"
         legacy = REPOSITORY_ROOT / "Python_legacy"

@@ -1,24 +1,23 @@
-# Isolated extraction workflow module map
+# Active Python module map
 
-| Responsibility | Target module |
+For system flow and mutation boundaries, see [`docs/architecture.md`](../docs/architecture.md).
+
+| Responsibility | Module |
 |---|---|
-| CLI and date selection | `main.py` |
-| Weekly top sellers and provider clients | `workflow_clients.py` |
-| Normalized records and states | `workflow_models.py` |
-| Provider limits, retry, and backpressure | `request_scheduler.py` |
+| CLI, date selection, per-week execution | `main.py` |
+| Provider clients and parsers | `workflow_clients.py` |
+| Normalized records and branch states | `workflow_models.py` |
+| Provider limits, retries, and backpressure | `request_scheduler.py` |
 | Dependency-aware orchestration and ITAD batching | `extraction_pipeline.py` |
-| ITAD lookup/history | `workflow_clients.py` |
-| Historical ratings | `workflow_clients.py` |
-| Steam HTML price/tags and app-details categories | `workflow_clients.py` |
 | Tag normalization | `tag_resolution.py` |
-| Database queries and transactions | `db.py` |
-| Validated persistence CLI | `UpdateDB.py` |
-| Update operation registry and result model | `database_updates/` |
-| Function-based targeted repairs | `database_updates/repairs/` |
+| Repository-relative output paths | `workflow_paths.py` |
+| Progress event reporting | `workflow_progress.py` |
+| PostgreSQL queries and transactions | `db.py` |
 | CSV serialization | `WriteCSV.py` |
-| Weekly chart validation and sidecars | `ValidateEntries.py`, `validation_models.py` |
-| Passing CSV/report pairs | repository `helpers/CSV/` directory |
-| Failed/error CSV/report pairs | repository `helpers/CSV_error/` directory |
+| Chart validation and sidecars | `ValidateEntries.py`, `validation_models.py` |
+| Update CLI | `UpdateDB.py` |
+| Update operation registry and result model | `database_updates/` |
+| Function-based repairs | `database_updates/repairs/` |
+| Active automated tests and fixtures | `Tests/` |
 
-The legacy scripts remain available for comparison, but the isolated workflow
-does not import or execute any module from the repository's `Python_legacy/` directory.
+Runtime review artifacts live in repository `helpers/CSV/` after passing validation and `helpers/CSV_error/` while staged, failed, or errored.

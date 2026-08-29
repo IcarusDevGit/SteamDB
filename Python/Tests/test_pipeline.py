@@ -1,3 +1,5 @@
+"""Test batching, dependencies, caching, ordering, and pipeline failure states."""
+
 import asyncio
 import unittest
 
@@ -7,11 +9,13 @@ from workflow_models import StoreData
 
 
 def gates():
+    """Build deterministic provider gates with no artificial request delay."""
     policy = ProviderPolicy(interval=0, concurrency=2, queue_size=2, retries=0)
     return {name: ProviderGate(policy) for name in ("steam_web", "steam_store", "itad")}
 
 
 class FakeClients:
+    """Record provider calls while returning deterministic enrichment data."""
     def __init__(self):
         self.events = []
         self.lookup_batches = []
@@ -49,6 +53,7 @@ class FakeClients:
 
 
 class PipelineTests(unittest.IsolatedAsyncioTestCase):
+    """Exercise the pipeline's concurrency and data-dependency guarantees."""
     async def test_batcher_flushes_full_timeout_and_end_of_input_batches(self):
         calls = []
 

@@ -16,7 +16,9 @@ T = TypeVar("T")
 
 
 class RetryableRequestError(RuntimeError):
+    """Signal a transient provider failure with an optional server delay."""
     def __init__(self, message: str, retry_after: float | None = None):
+        """Store the provider-requested retry delay with the error message."""
         super().__init__(message)
         self.retry_after = retry_after
 
@@ -40,6 +42,7 @@ class AsyncRateLimiter:
         self._lock = asyncio.Lock()
 
     async def acquire(self) -> None:
+        """Wait until the next permitted start and reserve the following slot."""
         async with self._lock:
             now = self._clock()
             delay = max(0.0, self._next_start - now)
@@ -49,12 +52,14 @@ class AsyncRateLimiter:
             self._next_start = max(now, self._next_start) + self.interval
 
     async def defer(self, delay: float) -> None:
+        """Push the next permitted start forward after provider backpressure."""
         async with self._lock:
             self._next_start = max(self._next_start, self._clock() + max(0.0, delay))
 
 
 @dataclass(frozen=True)
 class ProviderPolicy:
+    """Configure rate, capacity, and retry limits for one provider."""
     interval: float
     concurrency: int
     queue_size: int
@@ -75,6 +80,7 @@ class ProviderGate:
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
         jitter: Callable[[float, float], float] = random.uniform,
     ):
+        """Build a gate around a policy and injectable timing collaborators."""
         if policy.concurrency < 1 or policy.queue_size < 1:
             raise ValueError("provider concurrency and queue size must be positive")
         self.policy = policy
@@ -87,6 +93,7 @@ class ProviderGate:
         self._jitter = jitter
 
     async def run(self, operation: Callable[[], Awaitable[T]]) -> T:
+        """Run an operation within queue/rate limits and retry transient errors."""
         async with self._admitted:
             for attempt in range(self.policy.retries + 1):
                 await self.limiter.acquire()
@@ -98,6 +105,7 @@ class ProviderGate:
                         raise
                     delay = exc.retry_after
                     if delay is None:
+                        # Randomized exponential backoff avoids synchronized retries.
                         ceiling = self.policy.backoff_base * (2**attempt)
                         delay = self._jitter(ceiling / 2, ceiling)
                     emit(

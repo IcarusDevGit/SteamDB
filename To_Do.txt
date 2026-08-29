@@ -77,4 +77,8 @@ create diagrams and structure for the code using archify and open spec, then rew
 Rework monolythical UpdateDB.py code *Done
 Update Database entries, FetchTop100 was using US entries instead of global
 The ratings collection proccess might cause issues on newer games
-Add a new script to validate the entries at the end of the proccess using url: https://store.steampowered.com/charts/topsellers/global/{date}
+Add a new script to validate the entries at the end of the proccess using url: https://store.steampowered.com/charts/topsellers/global/{date} *DOne
+
+python Python/UpdateDB.py apply csv is taking longer than expected *Solved
+
+Change main.py so it takes a start date and end date

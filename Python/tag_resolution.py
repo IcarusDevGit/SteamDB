@@ -11,6 +11,7 @@ from workflow_paths import exceptions_path
 
 @dataclass(slots=True)
 class TagResolution:
+    """Return aligned tag IDs/names plus unresolved and newly discovered tags."""
     ids: list[int] = field(default_factory=list)
     names: list[str] = field(default_factory=list)
     unresolved: list[str] = field(default_factory=list)
@@ -18,6 +19,7 @@ class TagResolution:
 
 
 def load_exceptions(path: str | Path | None = None) -> dict[str, int]:
+    """Load the case-insensitive alias map, returning empty when absent."""
     selected = Path(path) if path else exceptions_path()
     if not selected.exists():
         return {}
@@ -33,6 +35,10 @@ def resolve_tags(
     exceptions: dict[str, int] | None = None,
     canonical_by_id: dict[int, str] | None = None,
 ) -> TagResolution:
+    """Resolve names through the catalog first, then configured aliases.
+
+    Duplicate IDs and unresolved names are retained only once in input order.
+    """
     known = {name.lower(): (name, int(tag_id)) for name, tag_id in tags_by_name.items()}
     aliases = exceptions or {}
     canonical = canonical_by_id or {tag_id: name for name, tag_id in tags_by_name.items()}
@@ -48,6 +54,7 @@ def resolve_tags(
         if resolved:
             canonical_name, tag_id = resolved
         elif key in aliases:
+            # Aliases map spelling variants to an existing canonical tag ID.
             tag_id = int(aliases[key])
             canonical_name = canonical.get(tag_id, name)
         else:
@@ -67,6 +74,7 @@ def merge_category_ids(
     tags_by_name: dict[str, int],
     resolved_names: dict[int, str],
 ) -> TagResolution:
+    """Merge category IDs into canonical tags and report new catalog entries."""
     canonical = {int(tag_id): name for name, tag_id in tags_by_name.items()}
     known_by_name = {
         name.strip().casefold(): (name, int(tag_id))
@@ -82,6 +90,7 @@ def merge_category_ids(
             continue
         known = known_by_name.get(name.strip().casefold())
         if known:
+            # Prefer an existing catalog identity when category names coincide.
             canonical_name, selected_id = known
         else:
             canonical_name, selected_id = name, category_id

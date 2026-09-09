@@ -15,12 +15,13 @@ import db
 from .common import UpdateResult, merge_results
 import workflow_paths
 from workflow_progress import Reporter, emit
+from workflow_models import RATING_LABELS
 
 
 COMMAND = "csv"
 REQUIRED_FIELDS = {
     "week_date", "rank", "appid", "name", "tags", "tag_ids",
-    "unresolved_tags", "rating", "price", "discount",
+    "unresolved_tags", "rating", "rating_label", "price", "discount",
     "last_week_rank", "consecutive_weeks", "errors",
 }
 
@@ -109,6 +110,9 @@ def load_validated_csv(filepath: str | Path) -> list[dict]:
             raise ValueError(f"line {line} has a non-positive tag id")
 
         rating = _optional_number(row["rating"], float, field="rating", line=line)
+        rating_label = row["rating_label"].strip() or None
+        if rating_label is not None and rating_label not in RATING_LABELS:
+            raise ValueError(f"line {line} has invalid rating_label: {rating_label!r}")
         price = _optional_number(row["price"], float, field="price", line=line)
         discount = _optional_number(row["discount"], int, field="discount", line=line)
         last_week_rank = _optional_number(row["last_week_rank"], int, field="last_week_rank", line=line)
@@ -121,7 +125,8 @@ def load_validated_csv(filepath: str | Path) -> list[dict]:
         records.append({
             "week_date": week.isoformat(), "rank": rank, "appid": appid,
             "name": row["name"].strip(), "tag_ids": tag_ids, "tag_names": tag_names,
-            "rating": rating, "price": price, "discount": discount,
+            "rating": rating, "rating_label": rating_label,
+            "price": price, "discount": discount,
             "last_week_rank": last_week_rank, "consecutive_weeks": consecutive,
         })
     return records

@@ -7,6 +7,44 @@ from enum import Enum
 from typing import Any
 
 
+RATING_LABELS = frozenset({
+    "Overwhelmingly Positive", "Very Positive", "Positive", "Mostly Positive",
+    "Mixed", "Mostly Negative", "Negative", "Very Negative",
+    "Overwhelmingly Negative", "no_label",
+})
+
+
+def classify_rating_label(positive: int, total: int) -> str:
+    """Return the configured Steam label for exact review counts."""
+    if positive < 0 or total < 0 or positive > total:
+        raise ValueError("review counts must satisfy 0 <= positive <= total")
+    if total < 10:
+        return "no_label"
+    percent = positive / total
+    if percent >= .95 and total >= 500:
+        return "Overwhelmingly Positive"
+    if percent >= .80:
+        return "Very Positive" if total >= 50 else "Positive"
+    if percent >= .70:
+        return "Mostly Positive"
+    if percent >= .40:
+        return "Mixed"
+    if percent >= .20:
+        return "Mostly Negative"
+    if total >= 500:
+        return "Overwhelmingly Negative"
+    return "Very Negative" if total >= 50 else "Negative"
+
+
+@dataclass(frozen=True, slots=True)
+class HistoricalRating:
+    """Retain the counts needed to derive one historical rating and label."""
+    positive: int
+    total: int
+    rating: float | None
+    label: str
+
+
 class BranchState(str, Enum):
     """Track whether one independent enrichment branch can still do work."""
     PENDING = "pending"
@@ -47,6 +85,7 @@ class ExtractionRecord:
     category_ids: list[int] = field(default_factory=list)
     itad_id: str | None = None
     rating: float | None = None
+    rating_label: str | None = None
     price: float | None = None
     discount: int | None = None
     tag_ids: list[int] = field(default_factory=list)
@@ -90,6 +129,7 @@ class ExtractionRecord:
             "tag_ids": ",".join(str(value) for value in self.tag_ids),
             "unresolved_tags": ", ".join(self.unresolved_tags),
             "rating": self.rating,
+            "rating_label": self.rating_label,
             "price": self.price,
             "discount": self.discount,
             "last_week_rank": self.last_week_rank,

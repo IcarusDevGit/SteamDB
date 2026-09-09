@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import csv
 import hashlib
 import json
@@ -18,7 +19,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import db
 import UpdateDB
 import WriteCSV
-from database_updates.repairs import game_names, prices, ratings, weekly_identities, weekly_stats
+from database_updates.repairs import game_names, game_tags, prices, rating_labels, ratings, weekly_identities, weekly_stats
+from workflow_models import StoreData
 
 
 class KeepOpenConnection:
@@ -79,6 +81,22 @@ def create_tables(connection, schema):
                 UNIQUE (week_date, rank), UNIQUE (week_date, game_id)
             )"""
         )
+        cursor.execute("INSERT INTO games (id, name) VALUES (999, 'Migration Probe')")
+        cursor.execute(
+            "INSERT INTO weeksheet (week_date, rank, game_id, rating) "
+            "VALUES ('2020-01-07', 1, 999, 0.75)"
+        )
+        migration = Path(__file__).resolve().parents[2] / "migrations" / "001_add_weeksheet_rating_label.sql"
+        cursor.execute(migration.read_text(encoding="utf-8"))
+        cursor.execute(
+            "SELECT rating, rating_label FROM weeksheet "
+            "WHERE week_date='2020-01-07' AND game_id=999"
+        )
+        migrated = cursor.fetchone()
+        if float(migrated[0]) != 0.75 or migrated[1] is not None:
+            raise AssertionError(f"rating-label migration changed existing data: {migrated}")
+        cursor.execute("DELETE FROM weeksheet WHERE game_id=999")
+        cursor.execute("DELETE FROM games WHERE id=999")
     connection.commit()
 
 
@@ -170,9 +188,12 @@ def run():
                 raise AssertionError(f"weekly fact reconciliation failed: {weekly_facts}")
 
             rating_candidates = ratings.find_candidates(week="2026-08-04")
+            label_candidates = rating_labels.find_candidates(week="2026-08-04")
             price_candidates = prices.find_candidates(week="2026-08-04")
             if {row["appid"] for row in rating_candidates} != {10, 20}:
                 raise AssertionError(f"rating candidate selection failed: {rating_candidates}")
+            if {row["appid"] for row in label_candidates} != {10, 20, 30}:
+                raise AssertionError(f"rating-label candidate selection failed: {label_candidates}")
             if {row["appid"] for row in price_candidates} != {10, 20}:
                 raise AssertionError(f"price candidate selection failed: {price_candidates}")
             repair_events = []
@@ -180,6 +201,10 @@ def run():
                 [{"week_date": "2026-08-04", "appid": 10, "rating": 0.9}],
                 reporter=repair_events.append,
             )
+            rating_labels.apply_updates([
+                {"week_date": "2026-08-04", "appid": 10, "rating_label": "Very Positive"},
+                {"week_date": "2026-08-04", "appid": 20, "rating_label": "no_label"},
+            ], reporter=repair_events.append)
             prices.apply_updates(
                 [{"week_date": "2026-08-04", "appid": 10, "price": 5.0, "discount": 50}],
                 reporter=repair_events.append,
@@ -190,15 +215,16 @@ def run():
             }], reporter=repair_events.append)
             with connection.cursor() as cursor:
                 cursor.execute(
-                    "SELECT game_id, rating, price, discount, last_week_rank, consecutive_weeks "
+                    "SELECT game_id, rating, price, discount, last_week_rank, consecutive_weeks, rating_label "
                     "FROM weeksheet WHERE game_id IN (10,20) ORDER BY game_id"
                 )
                 repaired = cursor.fetchall()
             if (
                 repaired[0][0] != 10 or float(repaired[0][1]) != 0.9
                 or float(repaired[0][2]) != 5.0 or repaired[0][3] != 50
-                or repaired[0][4:] != (8, 9)
+                or repaired[0][4:] != (8, 9, "Very Positive")
                 or repaired[1][1:4] != (None, None, None)
+                or repaired[1][6] != "no_label"
             ):
                 raise AssertionError(f"targeted repair affected out-of-scope rows: {repaired}")
 
@@ -331,13 +357,51 @@ def run():
                 (10, None, [1]), (50, "Global Game 50", []), (60, "Global Game 60", []),
             ]:
                 raise AssertionError(f"identity catalog preservation/insertion failed: {identity_games}")
+
+            tag_candidates = game_tags.find_candidates()
+            if [item["appid"] for item in tag_candidates] != [40, 50, 60]:
+                raise AssertionError(f"default empty-tag discovery failed: {tag_candidates}")
+            if [item["appid"] for item in game_tags.find_candidates(limit=1)] != [40]:
+                raise AssertionError("game-tag limit did not narrow empty-tag candidates")
+            if [item["appid"] for item in game_tags.find_candidates(appid=60)] != [60]:
+                raise AssertionError("game-tag appid target did not narrow empty-tag candidates")
+
+            class TagClients:
+                async def steam_html(self, appid):
+                    return StoreData(tags=["Action", "Uninvented Tag", "action"])
+
+            discovered_tags = asyncio.run(game_tags.discover(
+                tag_candidates, TagClients(), {"Action": 1}, exceptions={},
+            ))
+            tag_updates = [
+                {"appid": item["appid"], "tag_ids": resolution.ids}
+                for item, resolution, error in discovered_tags
+                if error is None and resolution.ids
+            ]
+            if any(resolution.unresolved != ["Uninvented Tag"]
+                   for _, resolution, error in discovered_tags if error is None):
+                raise AssertionError(f"resolved subset did not retain unknown evidence: {discovered_tags}")
+            with connection.cursor() as cursor:
+                cursor.execute("UPDATE games SET tags=ARRAY[2] WHERE id=50")
+            connection.commit()
+            if game_tags.apply_updates(tag_updates, reporter=repair_events.append) != 2:
+                raise AssertionError("guarded game-tag persistence count was incorrect")
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT id, tags FROM games WHERE id IN (40,50,60) ORDER BY id")
+                repaired_tags = cursor.fetchall()
+                cursor.execute("SELECT count(*) FROM tags")
+                tag_count = cursor.fetchone()[0]
+            if repaired_tags != [(40, [1]), (50, [2]), (60, [1])]:
+                raise AssertionError(f"game-tag guarded repair failed: {repaired_tags}")
+            if tag_count != 2:
+                raise AssertionError("game-tag repair invented a catalog tag identity")
             progress_operations = {
                 event.fields.get("operation") for event in repair_events
                 if event.kind == "persistence_progress"
             }
             if progress_operations != {
                 "repair_ratings", "repair_prices", "repair_weekly_stats",
-                "repair_game_names", "repair_weekly_identities",
+                "repair_rating_labels", "repair_game_names", "repair_game_tags", "repair_weekly_identities",
             }:
                 raise AssertionError(f"repair persistence progress incomplete: {progress_operations}")
 
@@ -364,7 +428,7 @@ def run():
             print(
                 "Disposable PostgreSQL integration passed: insert-only catalog, weekly reconciliation, "
                 "atomic apply, rank swap, idempotency, correct-week skipping, targeted repairs, "
-                "and whitespace-name repair"
+                "whitespace-name repair, and guarded empty-tag repair"
             )
         finally:
             db.get_connection = original_get_connection

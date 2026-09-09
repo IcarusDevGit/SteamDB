@@ -29,9 +29,13 @@ class FakeClock:
 class ModelPathSchedulerTests(unittest.IsolatedAsyncioTestCase):
     """Verify model invariants, path containment, pacing, and retry limits."""
     def test_record_preserves_zero_and_missing_values(self):
-        record = ExtractionRecord("2026-08-04", 1, 10, "Game", rating=0.0, price=0.0, discount=0)
+        record = ExtractionRecord(
+            "2026-08-04", 1, 10, "Game", rating=0.0,
+            rating_label="Mostly Negative", price=0.0, discount=0,
+        )
         row = record.to_csv_row()
         self.assertEqual(row["rating"], 0.0)
+        self.assertEqual(row["rating_label"], "Mostly Negative")
         self.assertEqual(row["price"], 0.0)
         self.assertEqual(row["discount"], 0)
         self.assertIsNone(ExtractionRecord("2026-08-04", 2, 11, "Unknown").price)

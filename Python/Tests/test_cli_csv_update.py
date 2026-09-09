@@ -70,6 +70,7 @@ class CliCsvUpdateTests(unittest.TestCase):
         self.assertEqual(row["week_date"], "2026-08-04")
         self.assertEqual(row["price"], "0.0")
         self.assertEqual(row["discount"], "0")
+        self.assertEqual(row["rating_label"], "")
 
     def test_main_writes_and_validates_each_week_independently(self):
         calls = []
@@ -168,7 +169,8 @@ class CliCsvUpdateTests(unittest.TestCase):
             writer.writerow({
                 "week_date": week, "rank": "1", "appid": "10", "name": "Game",
                 "tags": "Action", "tag_ids": "1", "unresolved_tags": unresolved,
-                "rating": "0.8", "price": "9.99", "discount": "20",
+                "rating": "0.8", "rating_label": "Very Positive",
+                "price": "9.99", "discount": "20",
                 "last_week_rank": "2", "consecutive_weeks": "3", "errors": "",
             })
         self._report(path, week=week)
@@ -486,7 +488,8 @@ class CliCsvUpdateTests(unittest.TestCase):
         record = {
             "week_date": "2026-08-04", "rank": 1, "appid": 10, "name": "Game",
             "tag_ids": [1], "tag_names": ["Action"], "price": 9.99,
-            "discount": 20, "rating": 0.8, "last_week_rank": 2, "consecutive_weeks": 3,
+            "discount": 20, "rating": 0.8, "rating_label": "Very Positive",
+            "last_week_rank": 2, "consecutive_weeks": 3,
         }
         second = {
             **record, "rank": 2, "appid": 20, "name": "Other",
@@ -520,6 +523,7 @@ class CliCsvUpdateTests(unittest.TestCase):
         self.assertEqual([value[2] for value in game_values], [[1], [1, 2]])
         self.assertEqual(game_page_size, 2)
         self.assertEqual(len(weeksheet_values), 2)
+        self.assertEqual(weeksheet_values[0][6], "Very Positive")
         self.assertEqual(weeksheet_page_size, 2)
 
     def test_contradictory_tag_mapping_fails_before_connection(self):
@@ -552,7 +556,8 @@ class CliCsvUpdateTests(unittest.TestCase):
         record = {
             "week_date": "2026-08-04", "rank": 1, "appid": 10, "name": "Game",
             "tag_ids": [1], "tag_names": ["Action"], "price": 9.99,
-            "discount": 20, "rating": 0.8, "last_week_rank": 2, "consecutive_weeks": 3,
+            "discount": 20, "rating": 0.8, "rating_label": "Very Positive",
+            "last_week_rank": 2, "consecutive_weeks": 3,
         }
         with (
             patch.object(db, "get_connection", return_value=connection),

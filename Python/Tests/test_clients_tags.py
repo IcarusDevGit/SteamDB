@@ -6,6 +6,7 @@ from unittest.mock import Mock
 
 from tag_resolution import merge_category_ids, resolve_tags
 from workflow_clients import RealExtractionClients, parse_histogram_rating, parse_store_html, parse_weekly
+from workflow_models import classify_rating_label
 
 
 class ClientAndTagTests(unittest.TestCase):
@@ -37,7 +38,23 @@ class ClientAndTagTests(unittest.TestCase):
             {"date": during_week, "recommendations_up": 2, "recommendations_down": 0},
             {"date": next_tuesday, "recommendations_up": 0, "recommendations_down": 10},
         ]}}
-        self.assertEqual(parse_histogram_rating(payload, "2026-08-04"), 10 / 12)
+        result = parse_histogram_rating(payload, "2026-08-04")
+        self.assertEqual((result.positive, result.total, result.rating, result.label),
+                         (10, 12, 10 / 12, "Positive"))
+
+    def test_rating_label_boundaries(self):
+        cases = (
+            (0, 0, "no_label"), (9, 9, "no_label"),
+            (8, 10, "Positive"), (35, 50, "Mostly Positive"),
+            (40, 100, "Mixed"), (20, 100, "Mostly Negative"),
+            (9, 49, "Negative"), (9, 50, "Very Negative"),
+            (99, 500, "Overwhelmingly Negative"),
+            (45, 50, "Very Positive"), (450, 500, "Very Positive"),
+            (475, 500, "Overwhelmingly Positive"),
+        )
+        for positive, total, expected in cases:
+            with self.subTest(positive=positive, total=total):
+                self.assertEqual(classify_rating_label(positive, total), expected)
 
     def test_store_html_parses_discount_and_tags_once(self):
         html = """

@@ -5,7 +5,7 @@ import unittest
 
 from extraction_pipeline import CatalogSnapshot, ExtractionPipeline, ItadLookupBatcher, PipelineConfig
 from request_scheduler import ProviderGate, ProviderPolicy
-from workflow_models import StoreData
+from workflow_models import HistoricalRating, StoreData
 
 
 def gates():
@@ -40,7 +40,7 @@ class FakeClients:
     async def rating(self, appid, week_date):
         self.events.append(("rating", appid))
         await asyncio.sleep(0)
-        return appid / 100
+        return HistoricalRating(appid, 100, appid / 100, "Mostly Negative")
 
     async def steam_html(self, appid):
         self.events.append(("html", appid))
@@ -98,6 +98,7 @@ class PipelineTests(unittest.IsolatedAsyncioTestCase):
             if appid == 10:
                 self.assertTrue(history_events)
         self.assertTrue(all(record.complete for record in records))
+        self.assertTrue(all(record.rating_label == "Mostly Negative" for record in records))
         self.assertEqual(clients.category_calls, [(10, [29])])
 
     async def test_itad_price_wins_and_existing_game_skips_tag_html(self):

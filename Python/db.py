@@ -91,7 +91,7 @@ def apply_validated_records(records: Iterable[dict]) -> int:
     weeksheet_candidates = [
         (
             row["week_date"], row["rank"], row["appid"],
-            row.get("price"), row.get("discount"), row.get("rating"),
+            row.get("price"), row.get("discount"), row.get("rating"), row.get("rating_label"),
             row.get("last_week_rank"), row.get("consecutive_weeks"),
         )
         for row in rows
@@ -129,7 +129,7 @@ def apply_validated_records(records: Iterable[dict]) -> int:
                 cursor,
                 """
                 INSERT INTO weeksheet
-                    (week_date, rank, game_id, price, discount, rating,
+                    (week_date, rank, game_id, price, discount, rating, rating_label,
                      last_week_rank, consecutive_weeks)
                 VALUES %s
                 ON CONFLICT (week_date, game_id) DO UPDATE SET
@@ -137,6 +137,7 @@ def apply_validated_records(records: Iterable[dict]) -> int:
                     price = EXCLUDED.price,
                     discount = EXCLUDED.discount,
                     rating = EXCLUDED.rating,
+                    rating_label = EXCLUDED.rating_label,
                     last_week_rank = EXCLUDED.last_week_rank,
                     consecutive_weeks = EXCLUDED.consecutive_weeks;
                 """,
@@ -149,4 +150,3 @@ def apply_validated_records(records: Iterable[dict]) -> int:
         raise
     finally:
         conn.close()
-

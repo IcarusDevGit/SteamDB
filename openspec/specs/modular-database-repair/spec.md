@@ -100,6 +100,41 @@ The system SHALL provide a named repair that selects catalog games whose stored 
 - **WHEN** a selected game's stored name becomes populated or null after discovery but before mutation
 - **THEN** the guarded update leaves that game unchanged and does not report it as applied
 
+### Requirement: Empty catalog game tags can be repaired from Steam HTML
+The system SHALL provide a named repair that selects every catalog game whose tag collection is null or empty by default and obtains community tag names from that application's English Steam store HTML. The repair SHALL resolve discovered names through the existing catalog and configured tag aliases, SHALL propose only unique resolved tag identifiers, and SHALL not create tag identities for unresolved names. It SHALL allow the operator to narrow selection by application ID or maximum candidate count and SHALL remain non-mutating unless application is explicitly authorized.
+
+#### Scenario: Default repair selects all empty-tag games
+- **WHEN** the operator runs the game-tag repair without an application ID or candidate limit
+- **THEN** the repair selects every game whose tag collection is null or empty
+- **AND** it excludes every game with at least one stored tag identifier
+
+#### Scenario: Steam tags resolve successfully
+- **WHEN** Steam HTML supplies one or more community tag names that resolve to catalog tag identifiers
+- **THEN** the repair proposes the unique resolved identifiers in source order
+- **AND** it stores them only when the operator explicitly authorizes mutation
+
+#### Scenario: Steam supplies unresolved tag names
+- **WHEN** one or more Steam community tag names do not resolve through the catalog or configured aliases
+- **THEN** the repair reports each unresolved name without inventing or inserting a tag identity
+- **AND** it may still propose and apply the successfully resolved identifiers for that game
+
+#### Scenario: Steam supplies no usable resolved tags
+- **WHEN** Steam is unavailable, the store page has no community tags, or none of its tag names resolve
+- **THEN** the repair reports the candidate as unavailable, skipped, or failed as appropriate
+- **AND** it leaves the stored tag collection unchanged
+
+#### Scenario: Operator narrows the repair
+- **WHEN** the operator supplies an application ID or maximum candidate count
+- **THEN** the repair inspects and mutates no empty-tag candidate outside the reported bound
+
+#### Scenario: Authorized default repair
+- **WHEN** the operator supplies `--apply` without an application ID or candidate limit
+- **THEN** the repair transactionally applies every valid proposal in the default empty-tag selection
+
+#### Scenario: Candidate changes before mutation
+- **WHEN** a selected game gains at least one stored tag after discovery but before mutation
+- **THEN** the guarded update leaves that game unchanged and does not report it as applied
+
 ### Requirement: Stored weekly identities can be compared with the global chart
 The system SHALL provide a named repair that selects every distinct date already present in `weeksheet` by default and compares each stored rank/application identity set with Steam's corresponding global weekly Top 100. The repair SHALL permit an operator to select one stored week, SHALL obtain exactly 100 unique global application identifiers at ranks 1 through 100 independently of configurable extraction-country settings, and SHALL remain non-mutating unless application is explicitly authorized.
 
@@ -193,3 +228,38 @@ Command-line repair progress SHALL be written immediately to standard error, whi
 #### Scenario: Repair is embedded without a reporter
 - **WHEN** a non-command-line caller invokes repair discovery or persistence without a reporter
 - **THEN** the repair performs the same work without writing terminal progress
+
+### Requirement: Missing weekly rating labels can be repaired
+The system SHALL provide a named `rating-labels` repair that retrieves all selected `weeksheet` rows whose `rating_label` is null in one database query and retains them in an in-memory candidate collection. It SHALL group candidates by game, obtain one complete histogram per unique game, derive a cutoff-consistent label for every candidate week from that response, and retain successful results in a separate update collection. It SHALL preserve numeric `rating`, support week, application identifier, and maximum-candidate filters, and remain non-mutating unless application is explicitly authorized.
+
+#### Scenario: Default discovery finds null labels
+- **WHEN** an operator runs the rating-label repair without application authorization
+- **THEN** one candidate query retrieves every null-label weekly row and the repair reports proposals without changing the database
+
+#### Scenario: Operator narrows the repair
+- **WHEN** an operator supplies a week, application identifier, or candidate limit
+- **THEN** discovery and mutation inspect no row outside the reported target
+
+#### Scenario: Historical reviews are insufficient
+- **WHEN** a selected row has fewer than 10 eligible reviews through its historical cutoff
+- **THEN** the repair proposes `no_label` so the successfully processed row is distinguishable from an uncollected row
+
+#### Scenario: A game appears in multiple weeks
+- **WHEN** the candidate collection contains multiple weekly rows for the same game
+- **THEN** the repair makes one histogram request for that game and derives each row's label using its own historical cutoff
+
+#### Scenario: Histogram collection fails
+- **WHEN** a game's histogram request fails or cannot be validated
+- **THEN** every affected candidate is reported as failed, excluded from the update collection, and left null for a later repair attempt
+
+#### Scenario: Authorized repair applies a label
+- **WHEN** all provider discovery has finished and the operator explicitly authorizes mutation
+- **THEN** the repair persists the complete validated update collection in one bulk operation and one transaction while preserving every numeric `rating`
+
+#### Scenario: Authorized default repair covers all null rows
+- **WHEN** the operator supplies `--apply` without a week, application identifier, or candidate limit
+- **THEN** the repair reports the complete null-label candidate set as its effective target and permits that set to be applied in one transaction
+
+#### Scenario: Candidate changes before persistence
+- **WHEN** a selected row gains a non-null `rating_label` after discovery but before mutation
+- **THEN** the guarded update leaves that row unchanged and does not report it as applied

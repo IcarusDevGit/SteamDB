@@ -86,11 +86,19 @@ The system SHALL combine eligible Steam shop identifiers into bounded ITAD ident
 - **THEN** each returned mapping is associated with its entry and unmapped entries continue with no ITAD identifier
 
 ### Requirement: Historical rating cutoff
-The system SHALL calculate each game's Steam rating using review histogram data only through the requested target date.
+The system SHALL calculate each game's numeric Steam rating and Steam rating label from the same review histogram aggregate containing data only through the closed requested chart week.
 
 #### Scenario: Future reviews exist
-- **WHEN** review data includes activity after the requested target date
-- **THEN** that later activity does not affect the calculated rating
+- **WHEN** review data includes activity at or after the Tuesday following the requested chart week
+- **THEN** that later activity affects neither the calculated numeric rating nor the calculated rating label
+
+#### Scenario: Rating enrichment completes
+- **WHEN** eligible historical histogram data is available for an entry
+- **THEN** the extraction record and reviewable CSV contain the numeric rating and the label produced from the same historical aggregate
+
+#### Scenario: Rating enrichment finds insufficient reviews
+- **WHEN** the historical aggregate contains fewer than 10 eligible reviews
+- **THEN** the extraction record and reviewable CSV contain `no_label` rather than a null rating label
 
 ### Requirement: Price and discount precedence
 The system SHALL use Steam price and discount history from ITAD when available. If ITAD has no Steam history values, the system SHALL omit unavailable ITAD values and SHALL attempt to populate price and discount from the Steam store page.

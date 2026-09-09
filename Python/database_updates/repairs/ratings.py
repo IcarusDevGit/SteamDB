@@ -6,6 +6,7 @@ import asyncio
 
 import db
 from workflow_clients import RealExtractionClients
+from workflow_models import HistoricalRating
 
 from ..common import UpdateResult
 from .common import add_target_arguments, persistence_progress, require_apply_bound, unit_completed, unit_started
@@ -82,6 +83,8 @@ async def discover(candidates, clients, reporter=None):
         unit_started(reporter, "repair_ratings", "steam_rating", identity, total=total)
         try:
             value = await clients.rating(row["appid"], str(row["week_date"]))
+            if isinstance(value, HistoricalRating):
+                value = value.rating
             result = row, value, None
             outcome = "completed" if value is not None else "unavailable"
         except Exception as exc:

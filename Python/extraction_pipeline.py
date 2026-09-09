@@ -9,7 +9,7 @@ from typing import Protocol
 
 from request_scheduler import ProviderGate
 from tag_resolution import load_exceptions, merge_category_ids, resolve_tags
-from workflow_models import BranchState, ExtractionRecord, StoreData
+from workflow_models import BranchState, ExtractionRecord, HistoricalRating, StoreData
 from workflow_progress import Reporter, emit
 
 
@@ -18,7 +18,7 @@ class ExtractionClients(Protocol):
     async def weekly(self, week_date: str) -> list[dict]: ...
     async def itad_lookup(self, appids: list[int]) -> dict[int, str | None]: ...
     async def itad_history(self, itad_id: str, week_date: str) -> tuple[float | None, int | None]: ...
-    async def rating(self, appid: int, week_date: str) -> float | None: ...
+    async def rating(self, appid: int, week_date: str) -> HistoricalRating: ...
     async def steam_html(self, appid: int) -> StoreData: ...
     async def game_name(self, appid: int) -> str | None: ...
     async def categories(self, appid: int, category_ids: list[int]) -> dict[int, str]: ...
@@ -238,10 +238,17 @@ class ExtractionPipeline:
         """Populate rating data and convert provider failures to record errors."""
         record.rating_state = BranchState.RUNNING
         try:
-            record.rating = await self.gates["steam_store"].run(
+            historical = await self.gates["steam_store"].run(
                 lambda: self.clients.rating(record.appid, record.week_date)
             )
-            record.rating_state = BranchState.SUCCEEDED if record.rating is not None else BranchState.ABSENT
+            if isinstance(historical, HistoricalRating):
+                record.rating = historical.rating
+                record.rating_label = historical.label
+            else:
+                # Preserve compatibility for injected callers that still return
+                # the former numeric-only contract.
+                record.rating = historical
+            record.rating_state = BranchState.SUCCEEDED if historical is not None else BranchState.ABSENT
         except Exception as exc:
             record.rating_state = BranchState.FAILED
             record.errors.append(f"rating: {exc}")

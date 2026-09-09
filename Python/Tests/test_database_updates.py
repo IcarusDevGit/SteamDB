@@ -10,7 +10,7 @@ from unittest.mock import ANY, Mock, patch
 import UpdateDB
 from database_updates.apply_validated_csv import REQUIRED_FIELDS, load_validated_csv
 from database_updates.common import UpdateResult, merge_results
-from database_updates.repairs import game_names, prices, ratings, weekly_identities, weekly_stats
+from database_updates.repairs import game_names, game_tags, prices, rating_labels, ratings, weekly_identities, weekly_stats
 
 
 class FakeClients:
@@ -39,6 +39,14 @@ class FakeClients:
         if appid == 2:
             raise RuntimeError("name provider failed")
         return None if appid == 3 else f" Steam Game {appid} "
+
+    async def rating_histogram(self, appid):
+        if appid == 2:
+            raise RuntimeError("histogram failed")
+        return {"results": {"rollups": [
+            {"date": 0, "recommendations_up": 8 if appid == 1 else 2,
+             "recommendations_down": 2 if appid == 1 else 0},
+        ]}}
 
 
 class ScriptedCursor:
@@ -136,6 +144,15 @@ class DatabaseUpdateTests(unittest.TestCase):
     def test_csv_validation_accepts_last_week_rank_above_chart_size(self):
         records = load_validated_csv(self._write({"last_week_rank": "147"}))
         self.assertEqual(records[0]["last_week_rank"], 147)
+
+    def test_csv_rating_label_validation_distinguishes_missing_and_no_label(self):
+        self.assertIsNone(load_validated_csv(self._write({"rating_label": ""}))[0]["rating_label"])
+        self.assertEqual(
+            load_validated_csv(self._write({"rating_label": "no_label"}))[0]["rating_label"],
+            "no_label",
+        )
+        with self.assertRaisesRegex(ValueError, "invalid rating_label"):
+            load_validated_csv(self._write({"rating_label": "Unknown"}))
 
     def test_rating_and_price_candidate_sql_owns_filters_limits_and_closure(self):
         rating_cursor = ScriptedCursor(rows=[(10, "2026-08-04")])
@@ -309,6 +326,59 @@ class DatabaseUpdateTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             ratings.run(args, {"clients": FakeClients()})
 
+    def test_rating_label_repair_groups_games_and_allows_full_set_apply(self):
+        candidates = [
+            {"appid": 1, "week_date": "2026-08-04"},
+            {"appid": 1, "week_date": "2026-08-11"},
+            {"appid": 2, "week_date": "2026-08-04"},
+            {"appid": 3, "week_date": "2026-08-04"},
+        ]
+        clients = FakeClients()
+        clients.rating_histogram = Mock(side_effect=clients.rating_histogram)
+        args = argparse.Namespace(week=None, appid=None, limit=None, apply=True)
+        with (
+            patch.object(rating_labels, "find_candidates", return_value=candidates) as find,
+            patch.object(rating_labels, "apply_updates", return_value=3) as apply,
+        ):
+            result = rating_labels.run(args, {"clients": clients})
+        find.assert_called_once_with(week=None, appid=None, limit=None, connection_factory=ANY)
+        self.assertEqual(clients.rating_histogram.call_count, 3)
+        apply.assert_called_once()
+        updates = apply.call_args.args[0]
+        self.assertEqual([row["rating_label"] for row in updates],
+                         ["Positive", "Positive", "no_label"])
+        self.assertEqual((result.target, result.proposed, result.applied, result.failed),
+                         ("all-null-rating-labels", 3, 3, 1))
+
+    def test_rating_label_candidate_query_and_bulk_guard(self):
+        cursor = ScriptedCursor(rows=[(10, "2026-08-04")])
+        connection = ScriptedConnection(cursor)
+        rows = rating_labels.find_candidates(
+            week="2026-08-04", appid=10, limit=1,
+            connection_factory=lambda: connection,
+        )
+        self.assertEqual(rows, [{"appid": 10, "week_date": "2026-08-04"}])
+        self.assertEqual(len(cursor.calls), 1)
+        self.assertIn("rating_label IS NULL", cursor.calls[0][0])
+        self.assertEqual(cursor.calls[0][1], ("2026-08-04", 10, 1))
+
+        bulk_cursor = ScriptedCursor()
+        bulk_cursor.rowcount = 1
+        bulk_connection = ScriptedConnection(bulk_cursor)
+        with patch.object(rating_labels, "execute_values") as bulk:
+            def execute(cursor_arg, statement, values, page_size):
+                self.assertIn("rating_label IS NULL", statement)
+                self.assertEqual(values, [("2026-08-04", 10, "no_label")])
+                cursor_arg.rowcount = 1
+            bulk.side_effect = execute
+            applied = rating_labels.apply_updates(
+                [{"week_date": "2026-08-04", "appid": 10, "rating_label": "no_label"}],
+                connection_factory=lambda: bulk_connection,
+            )
+        self.assertEqual(applied, 1)
+        bulk.assert_called_once()
+        self.assertTrue(bulk_connection.committed)
+
     def test_price_discovery_finishes_before_one_apply_call(self):
         candidates = [
             {"appid": value, "week_date": "2026-08-04"} for value in (1, 2, 3)
@@ -345,7 +415,8 @@ class DatabaseUpdateTests(unittest.TestCase):
 
     def test_weekly_identity_state_comparison_and_targeting(self):
         cursor = ScriptedCursor(result_sets=[
-            [("2026-08-04", 1, 10, 9.99, 20, 0.8), ("2026-08-04", 2, 20, 5.0, 0, 0.9)],
+            [("2026-08-04", 1, 10, 9.99, 20, 0.8, "Very Positive"),
+             ("2026-08-04", 2, 20, 5.0, 0, 0.9, "Positive")],
             [(10,), (20,), (30,)],
         ])
         connection = ScriptedConnection(cursor)
@@ -369,13 +440,14 @@ class DatabaseUpdateTests(unittest.TestCase):
         retained = next(row for row in plan.rows if row["appid"] == 20)
         inserted = next(row for row in plan.rows if row["appid"] == 30)
         self.assertEqual((retained["price"], retained["discount"], retained["rating"]), (5.0, 0, 0.9))
+        self.assertEqual(retained["rating_label"], "Positive")
         self.assertEqual((inserted["price"], inserted["discount"], inserted["rating"]), (None, None, None))
 
     def test_weekly_identity_reconciliation_is_atomic_and_catalog_preserving(self):
         plan = weekly_identities.WeekPlan(
             "2026-08-04",
             ({"week_date": "2026-08-04", "rank": 1, "appid": 20, "name": "Twenty",
-              "price": 5.0, "discount": 0, "rating": 0.9,
+              "price": 5.0, "discount": 0, "rating": 0.9, "rating_label": "Positive",
               "last_week_rank": 3, "consecutive_weeks": 2},),
             ((1, 20),), ((1, 10),), (), 0,
         )
@@ -494,6 +566,7 @@ class DatabaseUpdateTests(unittest.TestCase):
             ["repair", "prices", "--week", "2026-08-04", "--limit", "20", "--apply"],
             ["repair", "weekly-stats", "--week", "2026-08-04", "--apply"],
             ["repair", "game-names", "--apply"],
+            ["repair", "game-tags", "--apply"],
             ["repair", "weekly-identities", "--week", "2026-08-04"],
         )
         for command in commands:

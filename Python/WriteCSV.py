@@ -11,7 +11,7 @@ from workflow_paths import extraction_csv_path
 
 FIELDNAMES = [
     "week_date", "rank", "appid", "name", "tags", "tag_ids",
-    "unresolved_tags", "rating", "price", "discount", "last_week_rank",
+    "unresolved_tags", "rating", "rating_label", "price", "discount", "last_week_rank",
     "consecutive_weeks", "errors",
 ]
 

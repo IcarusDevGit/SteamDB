@@ -12,7 +12,7 @@ from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 
 from request_scheduler import RetryableRequestError
-from workflow_models import StoreData
+from workflow_models import HistoricalRating, StoreData, classify_rating_label
 
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -97,8 +97,8 @@ def parse_weekly(payload: dict, week_date: str) -> list[dict]:
     return records
 
 
-def parse_histogram_rating(payload: dict, target_date: str) -> float | None:
-    """Return the cumulative rating through the closed week.
+def parse_histogram_rating(payload: dict, target_date: str) -> HistoricalRating:
+    """Return cumulative review counts, rating, and label through the closed week.
 
     ``target_date`` is the Tuesday starting the chart week. Reviews from that
     Tuesday through Monday are included; reviews at or after the following
@@ -119,7 +119,12 @@ def parse_histogram_rating(payload: dict, target_date: str) -> float | None:
         down = int(point.get("recommendations_down", point.get("negative", 0)) or 0)
         positive += up
         total += up + down
-    return positive / total if total else None
+    return HistoricalRating(
+        positive=positive,
+        total=total,
+        rating=positive / total if total else None,
+        label=classify_rating_label(positive, total),
+    )
 
 
 def parse_store_html(html: str) -> StoreData:
@@ -257,6 +262,20 @@ class RealExtractionClients:
     async def rating(self, appid: int, week_date: str):
         """Fetch the cumulative rating through the closed chart week."""
         return await asyncio.to_thread(self._rating, appid, week_date)
+
+    async def rating_histogram(self, appid: int) -> dict:
+        """Fetch one game's complete histogram for multi-week repair reuse."""
+        return await asyncio.to_thread(self._rating_histogram, appid)
+
+    def _rating_histogram(self, appid):
+        """Request all available review rollups for one Steam application."""
+        response = self.session.get(
+            STEAM_HISTOGRAM_URL.format(appid=int(appid)),
+            params={"l": "english", "start_date": 0},
+            timeout=TIMEOUT,
+        )
+        _raise_for_retry(response)
+        return response.json()
 
     def _rating(self, appid, week_date):
         """Request the review histogram bounded by the next Tuesday."""

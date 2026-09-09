@@ -1,0 +1,2 @@
+ALTER TABLE weeksheet
+ADD COLUMN IF NOT EXISTS rating_label TEXT;

@@ -11,22 +11,22 @@ This documentation covers the active Python pipeline in [`Python/`](Python/), th
 ## End-to-End Architecture
 
 ```text
-                              Steam Global Charts + Store + ITAD APIs
-                                                │
-                                                ▼
-                                    Staging CSV + Chart Validation
-                                                │
-                                                ▼
-                              Transactional Upsert → PostgreSQL (Neon)
-                                       (games, tags, weeksheet)
-                                                │
-                                                ▼
-                        Analytical SQL Views (002_create_analytics_views.sql)
-                                                │
-                                 ┌──────────────┴──────────────┐
-                                 ▼                             ▼
-                           Power BI (.pbix)               Excel (.xlsx)
-                           Strategic Insights      Tactical Competitor Benchmark
+                                 Steam Global Charts + Store + ITAD APIs
+                                                   │
+                                                   ▼
+                                       Staging CSV + Chart Validation
+                                                   │
+                                                   ▼
+                                 Transactional Upsert → PostgreSQL (Neon)
+                                          (games, tags, weeksheet)
+                                                   │
+                                                   ▼
+                           Analytical SQL Views (002_create_analytics_views.sql)
+                                                   │
+                                    ┌──────────────┴──────────────┐
+                                    ▼                             ▼
+                              Power BI (.pbix)               Excel (.xlsx)
+                              Strategic Insights      Tactical Competitor Benchmark
 ```
 
 ---

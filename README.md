@@ -11,22 +11,22 @@ This documentation covers the active Python pipeline in [`Python/`](Python/), th
 ## End-to-End Architecture
 
 ```text
-Steam Global Charts + Store + ITAD APIs
-                  │
-                  ▼
-      Staging CSV + Chart Validation
-                  │
-                  ▼
-     Transactional Upsert → PostgreSQL (Neon)
-       (games, tags, weeksheet)
-                  │
-                  ▼
-    Analytical SQL Views (002_create_analytics_views.sql)
-                  │
-        ┌─────────┴──────────┐
-        ▼                    ▼
-  Power BI (.pbix)     Excel (.xlsx)
-  Strategic Insights   Tactical Competitor Benchmark
+          Steam Global Charts + Store + ITAD APIs
+                             │
+                             ▼
+               Staging CSV + Chart Validation
+                             │
+                             ▼
+         Transactional Upsert → PostgreSQL (Neon)
+                  (games, tags, weeksheet)
+                             │
+                             ▼
+   Analytical SQL Views (002_create_analytics_views.sql)
+                             │
+              ┌──────────────┴──────────────┐
+              ▼                             ▼
+       Power BI (.pbix)               Excel (.xlsx)
+      Strategic Insights      Tactical Competitor Benchmark
 ```
 
 ---
@@ -63,11 +63,11 @@ Steam Global Charts + Store + ITAD APIs
 1. **Market & Longevity** — Tenure funnel, rank/entry retention, top games table.
    ![Power BI — Market & Longevity](docs/images/powerbi-page1-market-longevity.jpg)
 2. **Pricing & Play Modes** — Retention vs. discount dependency by price tier, separate play-mode comparison, full-price vs. discounted matrix.
-   ![Power BI — Pricing & Play Modes](docs/images/powerbi-page2-pricing-play-modes.jpg)
+   ![Power BI — Pricing & Play Modes](docs/images/powerbi-page2-pricing-play-modes.png)
 3. **Tags & Ratings** — Genre evergreen rankings (`>= 30` games), retention vs. discount scatter plot, retention & median rank by Steam rating tier.
-   ![Power BI — Tags & Ratings](docs/images/powerbi-page3-tags-ratings.jpg)
+   ![Power BI — Tags & Ratings](docs/images/powerbi-page3-tags-ratings.png)
 4. **Discounts & Seasonality** — Post-discount `t+1` outcomes, discount-band rank delta & retention, 97-week seasonal sale wave analysis.
-   ![Power BI — Discounts & Seasonality](docs/images/powerbi-page4-discounts-seasonality.jpg)
+   ![Power BI — Discounts & Seasonality](docs/images/powerbi-page4-discounts-seasonality.png)
 
 ### 2. Excel Operational Benchmark — [`SteamDB_Dashboard.xlsx`](SteamDB_Dashboard.xlsx)
 Interactive studio benchmark workbook powered by **Power Query**, the **Excel Data Model**, **PivotTables** (`Distinct Count`), **Slicers & Timeline**, conditional formatting (**Data Bars**), and **`XLOOKUP` + Data Validation** (`TagBenchmark`) for filtering live competitors by price tier, rating, play mode, and date range.

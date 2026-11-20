@@ -76,6 +76,24 @@ class ResolveCsvTagsTests(unittest.TestCase):
             validator.assert_called_once()
             database.apply_validated_records.assert_not_called()
 
+    def test_apply_accepts_digest_matched_quarantine_report_name(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.make_csv(directory)
+            adjacent = path.with_name("review.validation.json")
+            quarantined = path.with_name("review.validation.20260911T132249Z-token.json")
+            adjacent.rename(quarantined)
+            database, client, exceptions = self.dependencies(directory)
+            validation = Mock(status=ValidationStatus.PASSED)
+            validator = Mock(return_value=(validation, path, adjacent))
+
+            result = resolve_csv_tags.resolve_csv(
+                path, apply=True, database=database, client=client,
+                exception_file=exceptions, validator=validator,
+            )
+
+            self.assertEqual(result.exit_code, 0)
+            validator.assert_called_once_with(path)
+
     def test_explicit_mapping_validation(self):
         with self.assertRaises(ValueError):
             resolve_csv_tags.parse_explicit_mappings(["Bad"])

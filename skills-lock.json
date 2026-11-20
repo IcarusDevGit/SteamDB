@@ -1,12 +1,6 @@
 {
   "version": 1,
   "skills": {
-    "archify": {
-      "source": "tt-a1i/archify",
-      "sourceType": "github",
-      "skillPath": "archify/SKILL.md",
-      "computedHash": "75e43d618986f5c2ff4e57216c0751cceca8318f634a2232da95a1b0ba028f7c"
-    },
     "neon": {
       "source": "neondatabase/agent-skills",
       "sourceType": "github",

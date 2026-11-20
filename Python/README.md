@@ -14,6 +14,4 @@ Start with the repository [`README.md`](../README.md). Detailed operator guides 
 - [Testing](../docs/testing.md)
 - [Troubleshooting](../docs/troubleshooting.md)
 
-The active workflow is intentionally isolated from the retired source tree. Comparison utilities are not part of the supported operational path.
-
 Every new supported operator command must be registered in [`command_catalog.py`](command_catalog.py). After changing a command or its arguments, run `python Python/generate_command_catalog.py` from the repository root and commit the refreshed catalog.

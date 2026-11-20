@@ -138,6 +138,30 @@ def default_validation_report(filepath: str | Path) -> Path:
     return path.with_name(f"{path.stem}.validation.json")
 
 
+def matching_validation_report(filepath: str | Path) -> Path:
+    """Find the unique digest-bound sidecar for an artifact, including quarantined pairs."""
+    path = Path(filepath)
+    adjacent = default_validation_report(path)
+    if adjacent.exists():
+        return adjacent
+
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    matches = []
+    for candidate in path.parent.glob("*.validation*.json"):
+        try:
+            payload = json.loads(candidate.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if payload.get("csv_sha256") == digest:
+            matches.append(candidate)
+    if len(matches) == 1:
+        return matches[0]
+    if len(matches) > 1:
+        rendered = ", ".join(str(candidate) for candidate in sorted(matches))
+        raise ValueError(f"multiple chart validation reports match the CSV: {rendered}")
+    return adjacent
+
+
 def _csv_weeks(filepath: str | Path) -> set[str]:
     """Return the CSV's sole non-empty week or reject mixed-week input."""
     with Path(filepath).open("r", newline="", encoding="utf-8") as handle:
@@ -154,7 +178,7 @@ def _csv_weeks(filepath: str | Path) -> set[str]:
 def verify_chart_evidence(filepath: str | Path, report_path: str | Path | None = None) -> Path:
     """Verify passed, digest-matched evidence for exactly the CSV's week."""
     path = Path(filepath)
-    report = Path(report_path) if report_path else default_validation_report(path)
+    report = Path(report_path) if report_path else matching_validation_report(path)
     try:
         payload = json.loads(report.read_text(encoding="utf-8"))
     except FileNotFoundError as exc:

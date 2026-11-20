@@ -65,6 +65,40 @@ class ValidateEntriesTests(unittest.TestCase):
             ValidateEntries.parse_chart_bootstrap(html),
             [ChartIdentity(1, 1001), ChartIdentity(2, 1002)],
         )
+        ssr_payload = json.dumps({
+            "route": "/charts/topsellers/:country?/:week?",
+            "loaderData": [
+                None,
+                json.dumps({
+                    "weekly": {
+                        "rgRanks": [
+                            {"nRank": 1, "itemKey": {"appid": 2001}},
+                            {"nRank": 2, "itemKey": {"appid": 2002}},
+                        ]
+                    }
+                }),
+            ],
+        })
+        ssr_html = (
+            '<!doctype html><html><body>'
+            f'<script type="application/json" id="valve-ssr-data">{ssr_payload}</script>'
+            '<script>(() => { const e = document.getElementById("valve-ssr-data"); })();</script>'
+            '</body></html>'
+        )
+        self.assertEqual(
+            ValidateEntries.parse_chart_bootstrap(ssr_html),
+            [ChartIdentity(1, 2001), ChartIdentity(2, 2002)],
+        )
+        with self.assertRaisesRegex(RuntimeError, "could not be parsed"):
+            ValidateEntries.parse_chart_bootstrap(
+                '<script type="application/json" id="valve-ssr-data">{not-json</script>'
+            )
+        with self.assertRaisesRegex(RuntimeError, "could not be parsed"):
+            ValidateEntries.parse_chart_bootstrap(
+                '<script type="application/json" id="valve-ssr-data">{"loaderData": null}</script>'
+            )
+        with self.assertRaisesRegex(RuntimeError, "was not found"):
+            ValidateEntries.parse_chart_bootstrap("<html><body><script>console.log(1)</script></body></html>")
         request = ValidateEntries.complete_chart_request("2026-08-04")
         self.assertEqual(request["page_count"], 100)
         self.assertEqual(request["country_code"], "")

@@ -90,8 +90,17 @@ def parse_csv_identities(path: str | Path) -> tuple[str, list[ChartIdentity], li
 
 
 def _loader_json(html: str) -> list:
-    """Decode the JSON array assigned to Steam Charts' SSR loader variable."""
+    """Decode the JSON array from Steam Charts' SSR payload or legacy inline script."""
     soup = BeautifulSoup(html, "html.parser")
+    ssr_data = soup.find("script", id="valve-ssr-data")
+    if ssr_data is not None:
+        try:
+            payload = json.loads(ssr_data.get_text())
+        except (TypeError, ValueError, json.JSONDecodeError) as exc:
+            raise RuntimeError("Steam Charts loader data could not be parsed") from exc
+        if not isinstance(payload, dict) or not isinstance(payload.get("loaderData"), list):
+            raise RuntimeError("Steam Charts loader data could not be parsed")
+        return payload["loaderData"]
     script = next(
         (node.get_text() for node in soup.find_all("script") if "window.SSR.loaderData" in node.get_text()),
         None,

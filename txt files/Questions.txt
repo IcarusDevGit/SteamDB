@@ -1,2 +1,0 @@
-Relation between price and ranking
-Relation between tags and ranking

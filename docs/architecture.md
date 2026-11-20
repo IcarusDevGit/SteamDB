@@ -66,4 +66,4 @@ All PostgreSQL queries and transactions are owned by [`Python/db.py`](../Python/
 
 ## Analytical & BI consumption
 
-Read-only analytical views defined in [`migrations/002_create_analytics_views.sql`](../migrations/002_create_analytics_views.sql) expose cleaned game longevity metrics, separated play modes, and post-discount retention transitions on top of `games`, `tags`, and `weeksheet`. Those views feed [`SteamDB_PBI.pbix`](../SteamDB_PBI.pbix) and [`SteamDB_Dashboard.xlsx`](../SteamDB_Dashboard.xlsx) to answer [`txt files/PB_questions.md`](../txt%20files/PB_questions.md).
+Read-only analytical views defined in [`migrations/002_create_analytics_views.sql`](../migrations/002_create_analytics_views.sql) expose cleaned game longevity metrics, separated play modes, and post-discount retention transitions on top of `games`, `tags`, and `weeksheet`. Those views feed [`SteamDB_PBI.pbix`](../SteamDB_PBI.pbix) and [`SteamDB_Dashboard.xlsx`](../SteamDB_Dashboard.xlsx) to answer [`docs/PB_questions.md`](PB_questions.md).

@@ -1,5 +1,5 @@
 -- Analytical read-only views for SteamDB Power BI, Excel, and SQL reporting.
--- Aligns directly with `txt files/PB_questions.md`:
+-- Aligns directly with `docs/PB_questions.md`:
 --   - Excludes non-game hardware (Steam Deck, Steam Deck Refurbished, Valve Index Base Station)
 --   - Treats Singleplayer, Multiplayer, and Co-op as distinct play-mode dimensions
 --   - Respects collection calendar gaps and right-censoring when computing t+1 retention

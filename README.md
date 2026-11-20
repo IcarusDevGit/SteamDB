@@ -59,7 +59,7 @@ Steam Global Charts + Store + ITAD APIs
 ## BI Deliverables
 
 ### 1. Power BI Strategic Report — [`SteamDB_PBI.pbix`](SteamDB_PBI.pbix)
-4-page star-schema report (`_Measures`, `calendar`, `game_profile`, `game_play_modes`, `game_tags`, `tag_summary`, `weekly_fact`) answering the full framework in [`txt files/PB_questions.md`](txt%20files/PB_questions.md):
+4-page star-schema report (`_Measures`, `calendar`, `game_profile`, `game_play_modes`, `game_tags`, `tag_summary`, `weekly_fact`) answering the full framework in [`docs/PB_questions.md`](docs/PB_questions.md):
 1. **Market & Longevity** — Tenure funnel, rank/entry retention, top games table.
    ![Power BI — Market & Longevity](docs/images/powerbi-page1-market-longevity.jpg)
 2. **Pricing & Play Modes** — Retention vs. discount dependency by price tier, separate play-mode comparison, full-price vs. discounted matrix.
@@ -146,7 +146,7 @@ Successful CSV/report pairs move to `helpers/CSV upserted`. Failed batch pairs m
 
 ## Documentation
 
-- [Business questions & analytical framework](txt%20files/PB_questions.md)
+- [Business questions & analytical framework](docs/PB_questions.md)
 - [Python command catalog](docs/commands.md)
 - [Architecture](docs/architecture.md)
 - [Configuration](docs/configuration.md)
